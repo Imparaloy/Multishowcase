@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile • Multi showcase</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: {
+              900: '#0e1628',
+              850: '#111a30',
+              800: '#121a2f',
+              750: '#18213a',
+              700: '#1b243b',
+              600: '#242e49',
+              card: '#141c33'
+            }
+          },
+          boxShadow: {
+            soft: '0 10px 30px rgba(0,0,0,0.35)'
+          },
+          borderRadius: { pill: '9999px' }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji'}
+    ::-webkit-scrollbar{width:10px;height:10px}
+    ::-webkit-scrollbar-thumb{background:#2b3755;border-radius:999px}
+    ::-webkit-scrollbar-track{background:transparent}
+  </style>
+</head>
+<body class="h-full bg-ink-900 text-white">
+  <div class="mx-auto max-w-[1280px] h-screen grid grid-cols-12">
+    <!-- Left Sidebar -->
+    <aside class="col-span-3 xl:col-span-2 border-r border-white/10 flex flex-col">
+      <div class="px-6 pt-6 pb-4">
+        <h1 class="text-2xl leading-6 font-extrabold"><span class="block">Multi</span><span class="text-white/80">showcase</span></h1>
+      </div>
+      <nav class="px-3 space-y-1 text-sm">
+        <a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition" href="#"><span class="text-white/70">#</span> Home</a>
+        <a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition" href="#"><span class="text-white/70">#</span> Explore</a>
+        <a class="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition" href="#"><span class="text-white/70">#</span> Bookmarks</a>
+        <a class="flex items-center gap-3 px-3 py-3 rounded-xl bg-white/5" href="#"><span class="text-white/70">#</span> Profile</a>
+      </nav>
+      <div class="mt-auto p-6">
+        <div class="flex items-center gap-3">
+          <div class="size-8 rounded-full bg-white/80"></div>
+          <div class="leading-tight">
+            <div class="text-sm font-medium">Name</div>
+            <div class="text-xs text-white/60">@username</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="col-span-6 xl:col-span-7 border-r border-white/10">
+      <!-- Header bar -->
+      <div class="sticky top-0 z-10 bg-ink-900/70 backdrop-blur supports-[backdrop-filter]:bg-ink-900/60">
+        <div class="h-12 flex items-center px-6 gap-3 border-b border-white/10">
+          <button class="p-2 rounded-full hover:bg-white/10" aria-label="Back">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5 text-white/80"><path fill-rule="evenodd" d="M15.78 3.72a.75.75 0 0 1 0 1.06L9.56 11l6.22 6.22a.75.75 0 1 1-1.06 1.06l-6.75-6.75a.75.75 0 0 1 0-1.06l6.75-6.75a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd"/></svg>
+          </button>
+          <div class="text-sm">Name</div>
+        </div>
+      </div>
+
+      <!-- Cover & Avatar -->
+      <section>
+        <div class="w-full h-[120px] bg-white/10"></div>
+        <div class="relative px-6 pb-4">
+          <div class="-mt-12 flex items-end justify-between">
+            <div class="flex items-end gap-4">
+              <div class="relative">
+                <div class="size-[120px] rounded-full bg-white/70 ring-4 ring-ink-900"></div>
+              </div>
+            </div>
+            <button class="mt-3 px-4 py-1.5 rounded-full text-sm border border-white/20 hover:bg-white/10">Edit Profile</button>
+          </div>
+          <div class="mt-4">
+            <div class="font-semibold">Name</div>
+            <div class="text-sm text-white/60">@Username</div>
+            <div class="mt-3 flex gap-6 text-sm">
+              <div class="flex gap-2"><span class="font-semibold">0</span><span class="text-white/60">Following</span></div>
+              <div class="flex gap-2"><span class="font-semibold">0</span><span class="text-white/60">Followers</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="px-0">
+          <div class="flex gap-10 px-6 text-sm border-b border-white/10">
+            <button class="relative py-3 font-medium">Post <span class="absolute left-0 -bottom-px h-[2px] w-full bg-white"></span></button>
+            <button class="py-3 text-white/70 hover:text-white">Media</button>
+            <button class="py-3 text-white/70 hover:text-white">Replies</button>
+            <button class="py-3 text-white/70 hover:text-white">Likes</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Feed -->
+      <section class="divide-y divide-white/10">
+        <!-- Reposted banner + post item -->
+        <article class="px-6 py-4">
+          <div class="mb-2 flex items-center gap-2 text-xs text-white/60">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-4"><path d="M19.5 7.5h-6.75a2.25 2.25 0 0 0-2.25 2.25v6.75m0 0L7.5 14.25m3 2.25-3 3m6-12h6.75a2.25 2.25 0 0 1 2.25 2.25V21m0 0-3-3m3 3-3 3"/></svg>
+            <span>Your Reposted</span>
+          </div>
+          <div class="flex items-start gap-3">
+            <div class="size-8 rounded-full bg-white/70"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 text-sm">
+                <span class="font-semibold">Name</span>
+                <span class="text-white/60">@Username</span>
+                <button class="ml-auto p-2 rounded-full hover:bg-white/10">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5 text-white/70"><path d="M12 5.25a1.125 1.125 0 1 1 0 2.25 1.125 1.125 0 0 1 0-2.25Zm0 5.25a1.125 1.125 0 1 1 0 2.25 1.125 1.125 0 0 1 0-2.25ZM13.125 16.5a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Z"/></svg>
+                </button>
+              </div>
+              <p class="mt-2 text-[13px] leading-6 text-white/80">Most fonts have a particular weight which corresponds to one of the numbers in Common weight name mapping. Most fonts have a particular weight which corresponds to one of the numbers in Common weight name mapping.</p>
+
+              <!-- actions -->
+              <div class="mt-3 flex items-center gap-6 text-xs text-white/70">
+                <button class="flex items-center gap-2 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M7.5 8.25h9a3 3 0 0 1 3 3v6a.75.75 0 0 1-1.28.53L15 14.25H7.5a3 3 0 0 1-3-3v-3a3 3 0 0 1 3-3Z"/></svg>2.0k</button>
+                <button class="flex items-center gap-2 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M3 12a9 9 0 1 1 18 0c0 3.866-3 7.5-9 9-6-1.5-9-5.134-9-9Z"/></svg>20 k</button>
+                <button class="flex items-center gap-2 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M12 4.5c-4.142 0-7.5 2.91-7.5 6.5 0 1.758.877 3.352 2.31 4.54l-.55 3.96 3.564-2.07c.715.113 1.454.17 2.176.17 4.142 0 7.5-2.91 7.5-6.5s-3.358-6.5-7.5-6.5Z"/></svg>30 k</button>
+                <span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M3 3v18l7.5-4.5L18 21V3H3Z"/></svg>1.8 k</span>
+                <button class="ml-auto p-1.5 rounded hover:bg-white/10" aria-label="Bookmark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M6.75 3A2.25 2.25 0 0 0 4.5 5.25v15l7.5-4.5 7.5 4.5v-15A2.25 2.25 0 0 0 17.25 3h-10.5Z"/></svg></button>
+                <button class="p-1.5 rounded hover:bg-white/10" aria-label="Share"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M7.5 12 3 7.5 7.5 3v3h6a6 6 0 0 1 6 6v1.5a.75.75 0 0 1-1.5 0V12a4.5 4.5 0 0 0-4.5-4.5h-6v3Z"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Another post item -->
+        <article class="px-6 py-4">
+          <div class="flex items-start gap-3">
+            <div class="size-8 rounded-full bg-white/70"></div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 text-sm">
+                <span class="font-semibold">Name</span>
+                <span class="text-white/60">@Username</span>
+                <button class="ml-auto p-2 rounded-full hover:bg-white/10">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5 text-white/70"><path d="M12 5.25a1.125 1.125 0 1 1 0 2.25 1.125 1.125 0 0 1 0-2.25Zm0 5.25a1.125 1.125 0 1 1 0 2.25 1.125 1.125 0 0 1 0-2.25ZM13.125 16.5a1.125 1.125 0 1 1-2.25 0 1.125 1.125 0 0 1 2.25 0Z"/></svg>
+                </button>
+              </div>
+              <p class="mt-2 text-[13px] leading-6 text-white/80">Most fonts have a particular weight which corresponds to one of the numbers in Common weight name mapping. Most fonts have a particular weight which corresponds to one of the numbers in Common weight name mapping.</p>
+              <div class="mt-3 flex items-center gap-6 text-xs text-white/70">
+                <button class="flex items-center gap-2 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M7.5 8.25h9a3 3 0 0 1 3 3v6a.75.75 0 0 1-1.28.53L15 14.25H7.5a3 3 0 0 1-3-3v-3a3 3 0 0 1 3-3Z"/></svg>2.0k</button>
+                <button class="flex items-center gap-2 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M3 12a9 9 0 1 1 18 0c0 3.866-3 7.5-9 9-6-1.5-9-5.134-9-9Z"/></svg>20 k</button>
+                <button class="flex items-center gap-2 hover:text-white"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M12 4.5c-4.142 0-7.5 2.91-7.5 6.5 0 1.758.877 3.352 2.31 4.54l-.55 3.96 3.564-2.07c.715.113 1.454.17 2.176.17 4.142 0 7.5-2.91 7.5-6.5s-3.358-6.5-7.5-6.5Z"/></svg>30 k</button>
+                <span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M3 3v18l7.5-4.5L18 21V3H3Z"/></svg>1.8 k</span>
+                <button class="ml-auto p-1.5 rounded hover:bg-white/10" aria-label="Bookmark"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M6.75 3A2.25 2.25 0 0 0 4.5 5.25v15l7.5-4.5 7.5 4.5v-15A2.25 2.25 0 0 0 17.25 3h-10.5Z"/></svg></button>
+                <button class="p-1.5 rounded hover:bg-white/10" aria-label="Share"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path d="M7.5 12 3 7.5 7.5 3v3h6a6 6 0 0 1 6 6v1.5a.75.75 0 0 1-1.5 0V12a4.5 4.5 0 0 0-4.5-4.5h-6v3Z"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div class="h-14"></div>
+      </section>
+    </main>
+
+    <!-- Right Sidebar -->
+    <aside class="col-span-3 xl:col-span-3 p-4 xl:p-6 space-y-4">
+      <div class="relative">
+        <input type="text" placeholder="Search" class="w-full bg-ink-800/70 border border-white/10 rounded-2xl py-3 pl-11 pr-4 placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-white/20" />
+        <div class="absolute left-3 top-1/2 -translate-y-1/2 text-white/60">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5"><path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 4.219 12.02l4.255 4.256a.75.75 0 1 0 1.06-1.06l-4.255-4.257A6.75 6.75 0 0 0 10.5 3.75Zm-5.25 6.75a5.25 5.25 0 1 1 10.5 0 5.25 5.25 0 0 1-10.5 0Z" clip-rule="evenodd"/></svg>
+        </div>
+      </div>
+
+      <div class="bg-ink-800/60 border border-white/10 rounded-2xl p-4 xl:p-5">
+        <div class="font-semibold"># Trending</div>
+        <div class="mt-4 space-y-5 text-sm">
+          <div>
+            <div class="text-white/60 text-xs">Trending Today</div>
+            <a href="#" class="block font-semibold leading-snug hover:underline"># CLOUD COMPUTING</a>
+            <div class="text-white/50 text-xs">36.7 K posts</div>
+          </div>
+          <div>
+            <div class="text-white/60 text-xs">Trending Today</div>
+            <a href="#" class="block font-semibold leading-snug hover:underline"># INTRODUCTION TO GAME DESIGN<br>AND DEVELOPMENT</a>
+            <div class="text-white/50 text-xs">36.7 K posts</div>
+          </div>
+          <div>
+            <div class="text-white/60 text-xs">Trending Today</div>
+            <a href="#" class="block font-semibold leading-snug hover:underline"># HUMAN INTERFACE DESIGN</a>
+            <div class="text-white/50 text-xs">36.7 K posts</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating Post Button -->
+      <div class="fixed right-6 bottom-6">
+        <button class="size-14 rounded-full bg-ink-800 border border-white/10 shadow-soft grid place-items-center hover:bg-ink-700 active:scale-95 transition">
+          <span class="sr-only">Post</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-6"><path d="M12 4.5a.75.75 0 0 1 .75.75v6h6a.75.75 0 0 1 0 1.5h-6v6a.75.75 0 0 1-1.5 0v-6h-6a.75.75 0 0 1 0-1.5h6v-6A.75.75 0 0 1 12 4.5Z"/></svg>
+        </button>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>
