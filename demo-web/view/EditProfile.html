@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Multi Showcase – Edit Profile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            inky: {
+              900: '#0A1020',
+              800: '#0F1830',
+              700: '#121C3A',
+              600: '#1A254A',
+            },
+            card: '#0F1A36',
+            outline: '#273455',
+            textmuted: '#8C9BC7',
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(255,255,255,0.06) inset, 0 8px 24px rgba(0,0,0,0.35)'
+          },
+          borderRadius: {
+            xl2: '1.25rem'
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { height: 100%; }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial; }
+    .scroll-smooth::-webkit-scrollbar{ width:.65rem } 
+    .scroll-smooth::-webkit-scrollbar-thumb{ background:#223055; border-radius:10px }
+  </style>
+</head>
+<body class="bg-inky-900 text-white">
+  <div class="min-h-screen grid grid-cols-[260px,1fr,360px] gap-6 px-4 md:px-6 py-4">
+    <!-- Sidebar -->
+    <aside class="rounded-2xl bg-inky-800/70 shadow-glow p-5 flex flex-col justify-between sticky top-4 h-[calc(100vh-2rem)]">
+      <div>
+        <h1 class="text-lg font-semibold tracking-tight">Multi<br><span class="text-textmuted font-medium">showcase</span></h1>
+        <nav class="mt-6 space-y-2 text-sm">
+          <a href="#" class="block px-3 py-2 rounded-xl hover:bg-inky-700/60 transition"># Home</a>
+          <a href="#" class="block px-3 py-2 rounded-xl hover:bg-inky-700/60 transition"># Explore</a>
+          <a href="#" class="block px-3 py-2 rounded-xl hover:bg-inky-700/60 transition"># Bookmarks</a>
+          <a href="#" class="block px-3 py-2 rounded-xl hover:bg-inky-700/60 transition"># Profile</a>
+        </nav>
+      </div>
+      <div class="flex items-center gap-3 p-3 rounded-xl border border-outline/40">
+        <div class="h-9 w-9 rounded-full bg-inky-700"></div>
+        <div class="leading-tight">
+          <div class="text-sm">Name</div>
+          <div class="text-xs text-textmuted">@username</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="space-y-4">
+      <!-- Top bar / breadcrumb -->
+      <div class="rounded-2xl bg-inky-800/70 shadow-glow px-4 py-3 flex items-center gap-3">
+        <button class="p-2 rounded-lg hover:bg-inky-700/60" aria-label="Back">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <span class="text-sm text-textmuted">Home</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-textmuted" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+        <span class="text-sm">Name</span>
+      </div>
+
+      <!-- Edit Profile Card -->
+      <section class="rounded-2xl bg-inky-800/70 shadow-glow overflow-hidden">
+        <div class="flex items-center justify-between px-6 pt-5">
+          <h2 class="font-semibold">Edit Profile</h2>
+          <div class="space-x-2">
+            <button class="px-4 py-2 rounded-xl bg-transparent border border-outline/40 hover:bg-inky-700/60 text-sm">Cancel</button>
+            <button class="px-4 py-2 rounded-xl bg-white text-inky-900 font-medium text-sm hover:opacity-90">Save</button>
+          </div>
+        </div>
+
+        <!-- Cover -->
+        <div class="relative px-6 pt-5 pb-20">
+          <div class="h-40 rounded-2xl bg-inky-700/70 border border-outline/40 grid place-items-center">
+            <div class="text-textmuted text-sm">📷</div>
+          </div>
+          <!-- Avatar -->
+          <div class="absolute -bottom-8 left-10 h-20 w-20 rounded-full bg-inky-700/80 border-4 border-inky-800 grid place-items-center">
+            <span class="text-textmuted">📷</span>
+          </div>
+        </div>
+
+        <!-- Form -->
+        <form class="px-6 pt-12 pb-6 space-y-4">
+          <!-- Name -->
+          <div>
+            <label class="block text-xs text-textmuted mb-1">Name</label>
+            <input type="text" placeholder="Name" class="w-full bg-inky-900/60 border border-outline/40 rounded-xl px-4 py-3 outline-none focus:border-white/30 placeholder:text-textmuted" />
+          </div>
+          <!-- Username -->
+          <div>
+            <label class="block text-xs text-textmuted mb-1">Username · <span class="opacity-70">@yourusername</span></label>
+            <input type="text" placeholder="Username" class="w-full bg-inky-900/60 border border-outline/40 rounded-xl px-4 py-3 outline-none focus:border-white/30 placeholder:text-textmuted" />
+          </div>
+          <!-- Bio -->
+          <div>
+            <label class="block text-xs text-textmuted mb-1">Bio</label>
+            <textarea rows="4" placeholder="" class="w-full bg-inky-900/60 border border-outline/40 rounded-xl px-4 py-3 outline-none resize-y focus:border-white/30 placeholder:text-textmuted"></textarea>
+          </div>
+        </form>
+      </section>
+
+      <!-- Bottom spacer -->
+      <div class="h-8"></div>
+    </main>
+
+    <!-- Right rail -->
+    <aside class="space-y-4 sticky top-4 h-[calc(100vh-2rem)]">
+      <!-- Search -->
+      <div class="rounded-2xl bg-inky-800/70 shadow-glow p-4">
+        <div class="relative">
+          <input type="text" placeholder="Search" class="w-full bg-inky-900/60 border border-outline/40 rounded-xl pl-10 pr-3 py-2.5 outline-none placeholder:text-textmuted focus:border-white/30" />
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-textmuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-4.35-4.35"/><circle cx="10.5" cy="10.5" r="7.5"/></svg>
+        </div>
+      </div>
+
+      <!-- Trending -->
+      <div class="rounded-2xl bg-inky-800/70 shadow-glow p-4">
+        <h3 class="text-sm font-semibold mb-3"># Trending</h3>
+        <ul class="space-y-3 text-sm">
+          <li class="p-3 rounded-xl bg-inky-900/40 border border-outline/20">
+            <div class="text-textmuted text-xs">Trending Today</div>
+            <div class="mt-1"># CLOUD COMPUTING</div>
+            <div class="text-textmuted text-xs mt-1">367K posts</div>
+          </li>
+          <li class="p-3 rounded-xl bg-inky-900/40 border border-outline/20">
+            <div class="text-textmuted text-xs">Trending Today</div>
+            <div class="mt-1"># INTRODUCTION TO GAME DESIGN AND DEVELOPMENT</div>
+            <div class="text-textmuted text-xs mt-1">321K posts</div>
+          </li>
+          <li class="p-3 rounded-xl bg-inky-900/40 border border-outline/20">
+            <div class="text-textmuted text-xs">Trending Today</div>
+            <div class="mt-1"># HUMAN INTERFACE DESIGN</div>
+            <div class="text-textmuted text-xs mt-1">245K posts</div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Floating Post Button (bottom-right mimic) -->
+      <div class="fixed right-6 bottom-6">
+        <button class="h-12 w-12 rounded-2xl bg-white text-inky-900 shadow-lg grid place-items-center hover:opacity-90" aria-label="Post">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor"><path d="M13 11V3h-2v8H3v2h8v8h2v-8h8v-2h-8z"/></svg>
+        </button>
+      </div>
+    </aside>
+  </div>
+</body>
+</html>
