@@ -10,7 +10,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "ejs": "^3.1.10",
     "express": "^5.1.0",
+    "lucide-static": "^0.542.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
     "tailwindcss": "^4.1.12"
   }
 }
