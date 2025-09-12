@@ -4,28 +4,28 @@ const path = require("path");
 const app = express();
 const PORT = 3000;
 
-// ตั้งค่า view engine เป็น EJS
+// View engine
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
 // Static files
 app.use(express.static(path.join(__dirname, "public")));
 
-// Sample data
-const posts = [
+// --- Sample data ---
+const forYouPosts = [
   {
-    name: "Sirikul",
-    username: "sirikul_ux",
-    content: "กำลังลองทำ element post ใน EJS + Tailwind 🎉",
+    name: "Polor",
+    username: "Polor_inwza",
+    content: "อยากนอนหลับสัก 48 ชั่วโมง",
     comments: "120",
     likes: "3.5k",
     reactions: "5.2k",
     views: "8.1k",
   },
   {
-    name: "Kanathip",
-    username: "wave_dev",
-    content: "ระบบ Wave progression เสร็จแล้ว ✔️",
+    name: "Polor",
+    username: "Polor_inwza",
+    content: "อยากเล่นเกมไม่อยากทำงานing",
     comments: "80",
     likes: "2.1k",
     reactions: "1.5k",
@@ -33,9 +33,31 @@ const posts = [
   },
 ];
 
-// Route
+const followingPosts = [
+  {
+    name: "Polor",
+    username: "Polor_inwza",
+    content: "ตามเพื่อนอยู่ 555",
+    comments: "12",
+    likes: "240",
+    reactions: "360",
+    views: "1.1k",
+  },
+];
+
+// --- Routes ---
 app.get("/", (req, res) => {
-  res.render("./views/home", { posts });
+  res.render("home", {
+    activeTab: "for-you",
+    feed: forYouPosts,
+  });
+});
+
+app.get("/following", (req, res) => {
+  res.render("home", {
+    activeTab: "following",
+    feed: followingPosts,
+  });
 });
 
 app.listen(PORT, () => {
