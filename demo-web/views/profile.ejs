@@ -6,9 +6,6 @@
     <main class="mx-auto max-w-[1200px] px-4 lg:px-6 grid grid-cols-12 gap-6">
       <!-- Left sidebar -->
       <%- include('../partials/leftside', { me, active: 'profile' }) %>
-      <!-- Topbar -->
-    
-
       <!-- Center -->
       <section class="col-span-12 md:col-span-6 card overflow-hidden p-0 md:border-x border-[#474F7A] min-h-svh">
         <header class="sticky top-0 z-20 bg-ink-900/80 backdrop-blur border-b border-white/10">
@@ -67,6 +64,6 @@
     <%- include('../partials/modals/editProfile', { id: 'editProfileModal', title: 'Edit Profile' }) %>
 
     <!-- script ของ modal -->
-    <script defer src="../public/js/modals/editProfile.js"></script>
+    <script defer src="/js/modals/editProfile.js"></script>
   </body>
 </html>
