@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Multi Showcase</title>
+    <link href="/style.css" rel="stylesheet" />
+    <script src="https://unpkg.com/feather-icons"></script>
+  </head>
+  <body class="bg-[#0f1533] text-white font-sans">
+    <div class="flex max-w-7xl mx-auto min-h-screen">
+      <!-- Sidebar -->
+      <%- include('components/sidebar') %>
+      <main class="w-3/5 border-x border-gray-700">
+        <!-- Tabs -->
+        <div class="flex justify-center border-b border-gray-700">
+          <a
+            href="/"
+            aria-current="<%= activeTab === 'for-you' ? 'page' : 'false' %>"
+            class="block w-1/2 py-3 text-center border-b-2 -mb-px transition <%= activeTab === 'for-you' ? 'border-purple-400 text-white' : 'border-transparent text-gray-400 hover:text-white hover:border-purple-400' %>"
+          >
+            For you
+          </a>
+
+          <a
+            href="/following"
+            aria-current="<%= activeTab === 'following' ? 'page' : 'false' %>"
+            class="block w-1/2 py-3 text-center border-b-2 -mb-px transition <%= activeTab === 'following' ? 'border-purple-400 text-white' : 'border-transparent text-gray-400 hover:text-white hover:border-purple-400' %>"
+          >
+            Following
+          </a>
+        </div>
+
+        <!-- New Post Box -->
+        <%- include('components/newpost', { placeholder: "What's happening?" })
+        %>
+
+        <!-- Feed Posts -->
+        <div class="p-4 space-y-4">
+          <% if (feed && feed.length) { %> <% feed.forEach(post => { %> <%-
+          include('components/post', post) %> <% }) %> <% } else { %>
+          <p class="text-center text-gray-400 py-6">No posts yet.</p>
+          <% } %>
+        </div>
+      </main>
+
+      <!-- Rightbar -->
+      <%- include('components/rightbar') %>
+    </div>
+
+    <script>
+      feather.replace();
+    </script>
+  </body>
+</html>
