@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+  <%- include('../partials/head') %>
+  <body class="h-full bg-[#1F2544]">
+    <main class="max-w-[1200px] mx-auto px-4 lg:px-6 grid grid-cols-12 gap-6">
+      <!-- ซ้าย -->
+      <%- include('../partials/leftside', { me, active: 'bookmarks' }) %>
+
+      <!-- กลาง -->
+      <section class="col-span-12 md:col-span-6 py-6 md:border-x border-[#474F7A] min-h-svh">
+        <div class="h-10 flex items-center gap-3 border-b border-white/10 mb-6">
+          <a href="javascript:history.back()" class="btn h-9 px-3">←</a>
+          <div class="font-semibold">Bookmarks</div>
+        </div>
+
+        <% if (Array.isArray(bookmarks) && bookmarks.length) { %>
+          <div class="card p-0 overflow-hidden">
+            <%- include('../partials/postCard', { posts: bookmarks }) %>
+          </div>
+        <% } else { %>
+          <div class="h-[60vh] flex flex-col items-center justify-center text-center">
+            <h1 class="text-2xl font-bold">Save posts for later</h1>
+            <p class="mt-2 text-sm muted">Bookmark posts to easily find them again in the future.</p>
+          </div>
+        <% } %>
+      </section>
+
+      <!-- ขวา -->
+      <%- include('../partials/rightside', { trending }) %>
+    </main>
+  </body>
+</html>

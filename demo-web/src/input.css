@@ -1,0 +1,39 @@
+/* v4: import แบบใหม่ */
+@import "tailwindcss";
+
+/* บอกให้สแกนไฟล์ .ejs ชัด ๆ (ไฟล์นี้อยู่ใน src/ จึงอ้าง ../ ) */
+@source "../views";
+@source "../partials";
+
+@layer base {
+  html, body { @apply text-white; }     /* หรือ text-[#E6EAF2] ก็ได้ */
+}
+/* ธีม/โทเคน (v4 ใช้ @theme) */
+@theme {
+  /* สีแบรนด์ */
+  --color-ink-900: #0e1628;
+  --color-ink-850: #111a30;
+  --color-ink-800: #121a2f;
+  --color-ink-750: #18213a;
+  --color-ink-700: #1b243b;
+  --color-ink-600: #242e49;
+  --color-ink-card: #141c33;
+
+  --color-text: #E6EAF2;
+  --color-text-muted: #B5B5BD;
+  /* รัศมีมุมและเงาแบบกำหนดเอง */
+  --radius-pill: 9999px;
+  --shadow-soft: 0 10px 30px rgba(0,0,0,.35);
+}
+/* ยูทิลิตี้กำหนดเอง (v4 ใช้ @utility) */
+@utility card {
+  @apply bg-ink-card rounded-2xl shadow-soft border border-ink-700/50;
+}
+
+@utility btn {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-pill border border-white/10 hover:bg-white/10;
+}
+
+@utility muted {
+  @apply text-white/60;
+}

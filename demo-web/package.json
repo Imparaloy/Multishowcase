@@ -3,21 +3,23 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "tailwindcss -i ./src/input.css -o ./public/css/style.css --watch",
-    "build": "tailwindcss -i ./src/input.css -o ./public/css/style.css --minify"
+    "dev": "node ./node_modules/tailwindcss/lib/cli.js -i ./src/input.css -o ./public/css/style.css --watch",
+    "build": "node ./node_modules/tailwindcss/lib/cli.js -i ./src/input.css -o ./public/css/style.css --minify",
+    "start": "node app.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "This is a basic Node.js project scaffolded with npm.",
   "dependencies": {
+    "@tailwindcss/cli": "^4.1.13",
     "ejs": "^3.1.10",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "nodemon": "^3.1.10"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.13"
   }
-
 }

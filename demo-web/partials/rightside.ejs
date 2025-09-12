@@ -1,0 +1,25 @@
+<aside class="hidden lg:flex col-span-12 md:col-span-3 sticky top-0 self-start h-svh">
+  <div class="flex flex-col h-full w-full py-6">
+    <!-- บน -->
+    <div class="mb-4">
+      <input type="text" placeholder="Search"
+        class="w-full bg-ink-800 px-4 py-2 outline-none border border-white/10 rounded-xl" />
+    </div>
+
+    <div class="card p-4 flex-1 overflow-y-auto">
+      <div class="text-xl font-semibold"># Trending</div>
+      <div class="mt-3 space-y-4">
+        <% (trending || []).forEach(t => { %>
+          <div>
+            <div class="text-sm muted text-[#B5B5BD]">Trending Today</div>
+            <div class="font-semibold mt-1"># <%= t.tag %></div>
+            <div class="text-xs muted mt-1 text-[#B5B5BD]"><%= t.posts %> posts</div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <!-- ล่าง -->
+    <button class="mt-4 self-end btn h-12 w-12 justify-center">✚</button>
+  </div>
+</aside>

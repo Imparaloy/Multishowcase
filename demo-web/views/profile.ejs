@@ -1,165 +1,72 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title><%= title %> • Multi showcase</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            ink: {
-              900: '#0e1628',
-              850: '#111a30',
-              800: '#121a2f',
-              750: '#18213a',
-              700: '#1b243b',
-              600: '#242e49',
-              card: '#141c33'
-            }
-          },
-          boxShadow: {
-            soft: '0 10px 30px rgba(0,0,0,0.35)'
-          },
-          borderRadius: { pill: '9999px' }
-        }
-      }
-    }
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    html,body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-    ::-webkit-scrollbar{width:10px;height:10px}
-    ::-webkit-scrollbar-thumb{background:#2b3755;border-radius:999px}
-    ::-webkit-scrollbar-track{background:transparent}
-  </style>
-</head>
-<body class="h-full bg-ink-900 text-white">
-  <div class="mx-auto max-w-[1280px] h-screen grid grid-cols-12">
+  <%- include('../partials/head') %>
+  <body class="h-full bg-[#1F2544]">
+    
+    <main class="mx-auto max-w-[1200px] px-4 lg:px-6 grid grid-cols-12 gap-6">
+      <!-- Left sidebar -->
+      <%- include('../partials/leftside', { me, active: 'profile' }) %>
+      <!-- Topbar -->
+    
 
-    <!-- Left Sidebar -->
-    <aside class="col-span-3 xl:col-span-2 border-r border-white/10 flex flex-col">
-      <div class="px-6 pt-6 pb-4">
-        <h1 class="text-2xl leading-6 font-extrabold">
-          <span class="block">Multi</span>
-          <span class="text-white/80">showcase</span>
-        </h1>
-      </div>
-      <nav class="mt-6 space-y-2 text-sm">
-        <a href="/" class="block px-3 py-2 rounded-xl hover:bg-ink-700/60 transition"># Home</a>
-        <a href="/explore" class="block px-3 py-2 rounded-xl hover:bg-ink-700/60 transition"># Explore</a>
-        <a href="/bookmarks" class="block px-3 py-2 rounded-xl hover:bg-ink-700/60 transition"># Bookmarks</a>
-        <a href="/profile" class="block px-3 py-2 rounded-xl hover:bg-ink-700/60 transition"># Profile</a>
-      </nav>
-      <div class="mt-auto p-6">
-        <div class="flex items-center gap-3">
-          <div class="size-8 rounded-full bg-white/80"></div>
-          <div class="leading-tight">
-            <div class="text-sm font-medium"><%= user.name %></div>
-            <div class="text-xs text-white/60">@<%= user.username %></div>
+      <!-- Center -->
+      <section class="col-span-12 md:col-span-6 card overflow-hidden p-0 md:border-x border-[#474F7A] min-h-svh">
+        <header class="sticky top-0 z-20 bg-ink-900/80 backdrop-blur border-b border-white/10">
+          <div class="max-w-[1200px] mx-auto px-4 lg:px-6 h-14 flex items-center gap-3">
+            <button class="btn" aria-label="Back">←</button>
+            <div class="font-semibold">Name</div>
           </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main -->
-    <main class="col-span-6 xl:col-span-7 border-r border-white/10">
-      <!-- Header bar -->
-      <div class="sticky top-0 z-10 bg-ink-900/70 backdrop-blur supports-[backdrop-filter]:bg-ink-900/60">
-        <div class="h-12 flex items-center px-6 gap-3 border-b border-white/10">
-          <button class="p-2 rounded-full hover:bg-white/10" aria-label="Back">
-            <!-- back icon -->
-          </button>
-          <div class="text-sm"><%= user.name %></div>
-        </div>
-      </div>
-
-      <!-- Cover & Avatar -->
-      <section>
-        <div class="w-full h-[120px] bg-white/10"></div>
-        <div class="relative px-6 pb-4">
-          <div class="-mt-12 flex items-end justify-between">
-            <div class="flex items-end gap-4">
-              <div class="relative">
-                <div class="size-[120px] rounded-full bg-white/70 ring-4 ring-ink-900"></div>
-              </div>
+        </header>
+        <!-- Cover -->
+        <div class="h-32 bg-ink-800"></div>
+      
+        <!-- Avatar + Header -->
+        <div class="px-4 -mt-10">
+          <div class="flex items-end justify-between">
+            <div class="w-28 h-28 rounded-full bg-white/20 border-4 border-ink-900"></div>
+            <button id="editProfileBtn" class="btn border-1 rounded-full px-2 py-1">Edit Profile</button>
+          </div>
+      
+          <div class="mt-3">
+            <div class="text-lg font-semibold">
+              <%= me.name %>
             </div>
-            <button id="editProfileBtn"
-              class="mt-3 px-4 py-1.5 rounded-full text-sm border border-white/20 hover:bg-white/10">
-              Edit Profile
-            </button>
-          </div>
-          <div class="mt-4">
-            <div class="font-semibold"><%= user.name %></div>
-            <div class="text-sm text-white/60">@<%= user.username %></div>
-            <div class="mt-3 flex gap-6 text-sm">
-              <div class="flex gap-2"><span class="font-semibold"><%= user.following %></span><span class="text-white/60">Following</span></div>
-              <div class="flex gap-2"><span class="font-semibold"><%= user.followers %></span><span class="text-white/60">Followers</span></div>
+            <div class="muted">@<%= me.username %>
             </div>
           </div>
-        </div>
-
-        <!-- Tabs -->
-        <div class="px-0">
-          <div class="flex gap-10 px-6 text-sm border-b border-white/10">
-            <button class="relative py-3 font-medium" aria-current="page">Post <span class="absolute left-0 -bottom-px h-[2px] w-full bg-white"></span></button>
-            <button class="py-3 text-white/70 hover:text-white">Media</button>
-            <button class="py-3 text-white/70 hover:text-white">Replies</button>
-            <button class="py-3 text-white/70 hover:text-white">Likes</button>
+      
+          <div class="mt-4 flex gap-6 text-sm muted">
+            <div><span class="text-white font-semibold">
+                <%= me.following %>
+              </span> Following</div>
+            <div><span class="text-white font-semibold">
+                <%= me.followers %>
+              </span> Followers</div>
           </div>
+      
+          <!-- Tabs -->
+          <div class="mt-4 border-b border-white/10 flex gap-6 text-sm">
+            <button class="py-3 border-b-2 border-white font-semibold">Post</button>
+            <button class="py-3 muted">Media</button>
+            <button class="py-3 muted">Replies</button>
+            <button class="py-3 muted">Likes</button>
+          </div>
+        </div>
+      
+        <!-- Posts -->
+        <div>
+          <%- include('../partials/postCard', { posts }) %>
         </div>
       </section>
 
-      <!-- Feed -->
-      <!-- <section class="divide-y divide-white/10">
-        <% posts.forEach(post => { %>
-          <article class="px-6 py-4">
-            <div class="flex items-start gap-3">
-              <div class="size-8 rounded-full bg-white/70"></div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 text-sm">
-                  <span class="font-semibold"><%= post.author.name %></span>
-                  <span class="text-white/60">@<%= post.author.username %></span>
-                </div>
-                <p class="mt-2 text-[13px] leading-6 text-white/80"><%= post.content %></p>
-              </div>
-            </div>
-          </article>
-        <% }) %>
-      </section> -->
+      <!-- Right sidebar -->
+      <%- include('../partials/rightside', { trending }) %>
     </main>
 
-    <!-- Right Sidebar -->
-    <aside class="col-span-3 xl:col-span-3 p-4 xl:p-6 space-y-4">
-      <div class="relative">
-        <input type="text" placeholder="Search"
-          class="w-full bg-ink-800/70 border border-white/10 rounded-2xl py-3 pl-11 pr-4 placeholder:text-white/50" />
-      </div>
+    <!-- include modal -->
+    <%- include('../partials/modals/editProfile', { id: 'editProfileModal', title: 'Edit Profile' }) %>
 
-      <div class="bg-ink-800/60 border border-white/10 rounded-2xl p-4 xl:p-5">
-        <div class="font-semibold"># Trending</div>
-        <div class="mt-4 space-y-5 text-sm">
-          <% trends.forEach(item => { %>
-            <div>
-              <div class="text-white/60 text-xs">Trending Today</div>
-              <a href="#" class="block font-semibold leading-snug hover:underline"><%= item.title %></a>
-              <div class="text-white/50 text-xs"><%= item.count %> posts</div>
-            </div>
-          <% }) %>
-        </div>
-      </div>
-    </aside>
-  </div>
-  <%- include('partials/editProfileModal', {
-    user: user,
-    errors: typeof errors !== 'undefined' ? errors : [],
-    form: typeof form !== 'undefined' ? form : null,
-    openModal: typeof openModal !== 'undefined' ? openModal : false
-  }) %>
-<script src="/js/modal-edit.js"></script>
-</body>
+    <!-- script ของ modal -->
+    <script defer src="../public/js/modals/editProfile.js"></script>
+  </body>
 </html>

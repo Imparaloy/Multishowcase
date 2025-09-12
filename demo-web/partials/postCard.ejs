@@ -1,0 +1,30 @@
+<% posts.forEach(p => { %>
+  <article class="border-b border-white/10">
+    <% if (p.isRepostedByYou) { %>
+      <div class="flex items-center gap-2 px-4 pt-4 text-sm muted">
+        ⤴ <span>Your Reposted</span>
+      </div>
+    <% } %>
+    <div class="flex gap-3 px-4 py-4">
+      <div class="w-10 h-10 rounded-full bg-white/20"></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <div class="font-semibold"><%= p.name %></div>
+          <div class="text-sm muted">@<%= p.username %></div>
+        </div>
+        <p class="mt-2 text-sm leading-6 text-white/90"><%= p.text %></p>
+        <div class="mt-3 flex items-center gap-6 text-sm muted">
+          <div>💬 <%= p.metrics.comments %></div>
+          <div>🔁 <%= p.metrics.reposts %></div>
+          <div>❤️ <%= p.metrics.likes %></div>
+          <div>📈 <%= p.metrics.views %></div>
+          <div class="ml-auto flex items-center gap-3">
+            <button class="hover:text-white">🔖</button>
+            <button class="hover:text-white">↗</button>
+          </div>
+        </div>
+      </div>
+      <button class="h-6 w-6 rounded hover:bg-white/10">⋯</button>
+    </div>
+  </article>
+<% }) %>
