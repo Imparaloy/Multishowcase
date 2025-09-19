@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node ./node_modules/tailwindcss/lib/cli.js -i ./src/input.css -o ./public/css/style.css --watch",
     "build": "node ./node_modules/tailwindcss/lib/cli.js -i ./src/input.css -o ./public/css/style.css --minify",
-    "start": "node app.js"
+    "start": "npm start"
   },
   "keywords": [],
   "author": "",
@@ -13,9 +13,17 @@
   "description": "This is a basic Node.js project scaffolded with npm.",
   "dependencies": {
     "@tailwindcss/cli": "^4.1.13",
+    "aws-jwt-verify": "^5.1.0",
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.2",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "pg": "^8.16.3",
+    "querystring": "^0.2.1",
+    "aws-sdk": "^2.1692.0",
+    "cookie-parser": "^1.4.7",
+    "crypto": "^1.0.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
