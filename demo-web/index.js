@@ -119,6 +119,13 @@ app.get("/following", (req, res) => {
   });
 });
 
+// --- Explore page route ---
+app.get("/explore", (req, res) => {
+  res.render("explore", {
+    feed: commentMock,
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
