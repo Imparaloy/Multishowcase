@@ -23,8 +23,7 @@
     "querystring": "^0.2.1",
     "aws-sdk": "^2.1692.0",
     "cookie-parser": "^1.4.7",
-    "crypto": "^1.0.1",
-    "lucide-static": "^0.542.0"
+    "crypto": "^1.0.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
