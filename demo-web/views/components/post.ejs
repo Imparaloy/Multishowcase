@@ -1,0 +1,28 @@
+<div class="bg-[#182244] rounded-xl p-4 mb-4 text-white">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 bg-gray-500 rounded-full"></div>
+      <div>
+        <span class="font-bold"><%= name %></span>
+        <span class="text-gray-400 ml-1">@<%= username %></span>
+      </div>
+    </div>
+    <div class="text-gray-400 cursor-pointer">•••</div>
+  </div>
+
+  <!-- Content -->
+  <div class="mt-3 text-sm leading-relaxed text-gray-200"><%= content %></div>
+
+  <!-- Actions -->
+  <div class="flex justify-start mt-4 text-gray-400 text-sm" style="column-gap:100px;">
+  <div class="flex items-center space-x-1 cursor-pointer hover:text-white" <% if (typeof id !== 'undefined') { %>onclick="window.location.href='/comment?id=<%= id %>'"<% } else { %>onclick="window.location.href='/comment'"<% } %>>
+      <i data-feather="message-circle" class="w-4 h-4"></i>
+      <span><%= comments %></span>
+    </div>
+  <div class="flex items-center space-x-1 cursor-pointer hover:text-white" <% if (typeof id !== 'undefined') { %>onclick="window.location.href='/comment?id=<%= id %>'"<% } else { %>onclick="window.location.href='/comment'"<% } %>>
+      <i data-feather="heart" class="w-4 h-4"></i>
+      <span><%= likes %></span>
+    </div>
+  </div>
+</div>
