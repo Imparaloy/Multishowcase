@@ -303,6 +303,40 @@ app.get("/profile", (req, res) => {
   });
 });
 
+// --- Auth pages ---
+app.get('/login', (req, res) => {
+  // If user is already logged in, you might redirect to profile or home.
+  // Here we simply render the login page. currentUser is not set.
+  res.render('login');
+});
+
+app.get('/signup', (req, res) => {
+  res.render('signup');
+});
+
+// --- Logout route ---
+app.post('/logout', (req, res) => {
+  // If using express-session this will destroy the session.
+  if (req.session && typeof req.session.destroy === 'function') {
+    req.session.destroy((err) => {
+      // ignore error and redirect to home
+      return res.redirect('/');
+    });
+    return;
+  }
+
+  // If using Passport.js, call req.logout when available
+  if (typeof req.logout === 'function') {
+    try {
+      req.logout();
+    } catch (e) {
+      // noop
+    }
+  }
+
+  return res.redirect('/');
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
