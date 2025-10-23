@@ -110,6 +110,7 @@ app.get("/comment", (req, res) => {
     post: post,
     comments: comments,
     currentUser,
+    activePage: null,
   });
 });
 
@@ -217,6 +218,7 @@ app.get("/", (req, res) => {
     activeTab: "for-you",
     feed: forYouPosts,
     currentUser,
+    activePage: "home",
   });
 });
 
@@ -225,6 +227,7 @@ app.get("/following", (req, res) => {
     activeTab: "following",
     feed: followingPosts,
     currentUser,
+    activePage: "home",
   });
 });
 
@@ -262,6 +265,7 @@ app.get("/explore", (req, res) => {
     searchQuery: rawQuery,
     searchQueryEncoded: rawQuery ? encodeURIComponent(rawQuery) : "",
     currentUser,
+    activePage: "explore",
   });
 });
 
@@ -281,6 +285,21 @@ app.get("/groups", (req, res) => {
     isOwner,
     isMember,
     currentMembership,
+    activePage: "groups",
+  });
+});
+
+// --- Profile page route ---
+app.get("/profile", (req, res) => {
+  const me = {
+    name: currentUser.displayName,
+    username: currentUser.username,
+  };
+
+  res.render("profile", {
+    me,
+    currentUser,
+    activePage: "profile",
   });
 });
 

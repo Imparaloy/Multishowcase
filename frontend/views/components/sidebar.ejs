@@ -2,17 +2,17 @@
   <div>
     <h1 class="text-2xl font-bold mb-8">Multi<br/>showcase</h1>
     <nav class="space-y-4">
-  <a href="/" class="block hover:text-gray-300"># Home</a>
-  <a href="/explore" class="block hover:text-gray-300"># Explore</a>
-  <a href="/groups" class="block hover:text-gray-300"># Group</a>
-  <a href="/profile" class="block hover:text-gray-300"># Profile</a>
+      <a href="/" aria-current="<%= activePage === 'home' ? 'page' : 'false' %>" class="block hover:text-gray-300 <%= activePage === 'home' ? 'text-white font-semibold' : 'text-white/70' %>"># Home</a>
+      <a href="/explore" aria-current="<%= activePage === 'explore' ? 'page' : 'false' %>" class="block hover:text-gray-300 <%= activePage === 'explore' ? 'text-white font-semibold' : 'text-white/70' %>"># Explore</a>
+      <a href="/groups" aria-current="<%= activePage === 'groups' ? 'page' : 'false' %>" class="block hover:text-gray-300 <%= activePage === 'groups' ? 'text-white font-semibold' : 'text-white/70' %>"># Group</a>
+      <a href="/profile" aria-current="<%= activePage === 'profile' ? 'page' : 'false' %>" class="block hover:text-gray-300 <%= activePage === 'profile' ? 'text-white font-semibold' : 'text-white/70' %>"># Profile</a>
     </nav>
   </div>
   <div class="flex items-center space-x-2">
     <div class="w-10 h-10 bg-gray-500 rounded-full"></div>
     <div>
-      <p class="font-bold">Name</p>
-      <p class="text-gray-400 text-sm">@Username</p>
+      <p class="font-bold"><%= currentUser?.displayName || 'Name' %></p>
+      <p class="text-gray-400 text-sm">@<%= currentUser?.username || 'Username' %></p>
     </div>
   </div>
 </aside>
