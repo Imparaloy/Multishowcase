@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Groups</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
+  </head>
+  <body class="bg-[#0f1533] text-white font-sans">
+    <div class="flex mx-auto min-h-screen">
+      <!-- Sidebar -->
+      <%- include('components/sidebar') %>
+
+      <% const allGroups = Array.isArray(groups) ? groups : []; %>
+      <% const currentOwner = activeGroup.members.find(member => member.role === 'owner'); %>
+      <% const requests = activeGroup.pendingRequests || []; %>
+      <% const invites = activeGroup.invitations || []; %>
+      <% const posts = activeGroup.posts || []; %>
+      <% const totalMembers = activeGroup.members.length; %>
+
+      <main class="flex-1 border-x p-2 rounded border-gray-700">
+        <div class="px-4 pt-6 space-y-6">
+          <section class="bg-[#182244] rounded-2xl p-6 space-y-6 border border-gray-700/60">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+              <div class="space-y-2">
+                <p class="text-xs uppercase tracking-[0.2em] text-purple-300">Community Group</p>
+                <h1 class="text-3xl font-bold"><%= activeGroup.name %></h1>
+                <p class="text-sm text-gray-300 max-w-3xl leading-relaxed"><%= activeGroup.description %></p>
+              </div>
+              <div class="flex gap-3 flex-wrap justify-end">
+                <% if (!isMember) { %>
+                  <button type="button" class="px-5 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
+                    <i data-feather="log-in" class="w-4 h-4"></i>
+                    ขอเข้าร่วมกลุ่ม
+                  </button>
+                <% } else if (isOwner) { %>
+                  <button type="button" class="px-5 py-2 rounded-full bg-red-500/20 text-red-300 hover:bg-red-500/30 text-sm flex items-center gap-2">
+                    <i data-feather="trash-2" class="w-4 h-4"></i>
+                    ลบกลุ่ม
+                  </button>
+                <% } else { %>
+                  <button type="button" class="px-5 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-sm flex items-center gap-2">
+                    <i data-feather="log-out" class="w-4 h-4"></i>
+                    ออกจากกลุ่ม
+                  </button>
+                <% } %>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              <div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">Owner</p>
+                  <p class="font-semibold text-white"><%= currentOwner?.displayName || 'ไม่ระบุ' %></p>
+                </div>
+                <i data-feather="shield" class="w-5 h-5 text-purple-200"></i>
+              </div>
+              <div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">สมาชิก</p>
+                  <p class="font-semibold text-white"><%= totalMembers %> คน</p>
+                </div>
+                <i data-feather="users" class="w-5 h-5 text-purple-200"></i>
+              </div>
+              <div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between">
+                <div>
+                  <p class="text-xs text-gray-400 uppercase">คำขอรออนุมัติ</p>
+                  <p class="font-semibold text-white"><%= requests.length %></p>
+                </div>
+                <i data-feather="inbox" class="w-5 h-5 text-purple-200"></i>
+              </div>
+            </div>
+          </section>
+
+          <% if (allGroups.length) { %>
+            <section class="bg-[#182244] rounded-2xl p-5 space-y-3">
+              <h2 class="text-lg font-semibold">กลุ่มของฉัน</h2>
+              <div class="flex flex-wrap gap-2">
+                <% allGroups.forEach(function(groupItem) {
+                     const isCurrent = groupItem.id === activeGroup.id;
+                %>
+                  <a
+                    href="/groups?id=<%= groupItem.id %>"
+                    class="px-4 py-2 rounded-full text-sm transition <%= isCurrent ? 'bg-purple-500/30 text-white-500 border border-purple-400' : 'bg-[#1f2e5f] text-gray-300 hover:text-white hover:bg-purple-500/20' %>"
+                  >
+                    <%= groupItem.name %>
+                  </a>
+                <% }) %>
+              </div>
+            </section>
+          <% } %>
+
+          <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div class="xl:col-span-2 space-y-6">
+              <section class="bg-[#182244] rounded-2xl p-6 space-y-4 border border-gray-700/60">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <h3 class="text-lg font-semibold">โพสต์ในกลุ่ม</h3>
+                    <p class="text-xs text-gray-400">แชร์งานและรับฟีดแบ็กจากสมาชิก</p>
+                  </div>
+                  <% if (isMember) { %>
+                    <button type="button" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
+                      <i data-feather="edit-3" class="w-4 h-4"></i>
+                      สร้างโพสต์
+                    </button>
+                  <% } %>
+                </div>
+                <% if (isMember) { %>
+                  <div class="bg-[#1f2e5f] rounded-xl p-4 space-y-3 border border-gray-600/60">
+                    <textarea class="w-full bg-transparent border border-gray-600 rounded-lg p-3 text-sm outline-none focus:border-purple-400" rows="3" placeholder="แชร์อัปเดตให้สมาชิกกลุ่ม"></textarea>
+                    <div class="flex justify-between text-xs text-gray-400">
+                      <span class="flex items-center gap-1"><i data-feather="image" class="w-4 h-4"></i>เพิ่มสื่อ</span>
+                      <button type="button" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">โพสต์</button>
+                    </div>
+                  </div>
+                <% } else { %>
+                  <div class="bg-[#1f2e5f] rounded-xl p-4 text-sm text-gray-300 border border-gray-600/50">ต้องเป็นสมาชิกก่อนจึงจะโพสต์ได้</div>
+                <% } %>
+
+                <div class="space-y-4">
+                  <% if (posts.length) { %>
+                    <% posts.forEach(function(post) { %>
+                      <article class="bg-[#1f2e5f] rounded-xl p-4 space-y-3 border border-gray-600/60">
+                        <div class="flex items-center justify-between text-sm text-gray-300">
+                          <div class="space-y-1">
+                            <p class="font-semibold text-white"><%= post.author %></p>
+                            <p class="text-xs text-gray-400"><%= post.timestamp %></p>
+                          </div>
+                          <button type="button" class="text-gray-400 hover:text-white" aria-label="post actions">
+                            <i data-feather="more-horizontal" class="w-5 h-5"></i>
+                          </button>
+                        </div>
+                        <p class="text-sm text-gray-200 leading-relaxed"><%= post.content %></p>
+                        <div class="flex gap-5 text-xs text-gray-400">
+                          <button type="button" class="flex items-center gap-1 hover:text-white">
+                            <i data-feather="thumbs-up" class="w-4 h-4"></i>React
+                          </button>
+                          <button type="button" class="flex items-center gap-1 hover:text-white">
+                            <i data-feather="message-circle" class="w-4 h-4"></i>Comment
+                          </button>
+                        </div>
+                      </article>
+                    <% }) %>
+                  <% } else { %>
+                    <p class="text-sm text-gray-400">ยังไม่มีโพสต์ในกลุ่ม</p>
+                  <% } %>
+                </div>
+              </section>
+            </div>
+
+            <aside class="space-y-6">
+              <section class="bg-[#182244] rounded-2xl p-6 space-y-4 border border-gray-700/60">
+                <h3 class="text-lg font-semibold">สร้างกลุ่มใหม่</h3>
+                <form class="space-y-3">
+                  <div>
+                    <label class="block text-xs uppercase text-gray-400 mb-1">ชื่อกลุ่ม</label>
+                    <input type="text" class="w-full bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400" placeholder="ชื่อกลุ่ม" />
+                  </div>
+                  <div>
+                    <label class="block text-xs uppercase text-gray-400 mb-1">คำอธิบาย</label>
+                    <textarea class="w-full bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400" rows="3" placeholder="อธิบายวัตถุประสงค์ของกลุ่ม"></textarea>
+                  </div>
+                  <button type="button" class="w-full px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">สร้างกลุ่ม</button>
+                </form>
+              </section>
+
+              <section class="bg-[#182244] rounded-2xl p-6 space-y-4 border border-gray-700/60">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-lg font-semibold">สมาชิก</h3>
+                  <span class="text-xs text-gray-400"><%= totalMembers %> คน</span>
+                </div>
+                <div class="space-y-3 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                  <% activeGroup.members.forEach(function(member) { %>
+                    <div class="bg-[#1f2e5f] rounded-xl px-3 py-3 border border-gray-600/60">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <p class="text-sm font-semibold text-white"><%= member.displayName %></p>
+                          <p class="text-xs text-gray-400">@<%= member.username %></p>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded-full <%= member.role === 'owner' ? 'bg-purple-500/30 text-purple-200' : 'bg-gray-500/30 text-gray-200' %>">
+                          <%= member.role === 'owner' ? 'Owner' : 'Member' %>
+                        </span>
+                      </div>
+                      <% if (isOwner && member.role !== 'owner') { %>
+                        <div class="flex gap-2 mt-3 text-xs">
+                          <button type="button" class="flex-1 px-3 py-2 rounded-full bg-purple-600 hover:bg-purple-700">เลื่อนเป็น Owner</button>
+                          <button type="button" class="flex-1 px-3 py-2 rounded-full bg-red-500/20 text-red-300 hover:bg-red-500/30">ลบออก</button>
+                        </div>
+                      <% } %>
+                      <% if (isOwner && member.role === 'owner' && member.username !== currentUser.username) { %>
+                        <div class="flex gap-2 mt-3 text-xs">
+                          <button type="button" class="flex-1 px-3 py-2 rounded-full bg-gray-600 hover:bg-gray-500">ลดสิทธิ์เป็นสมาชิก</button>
+                        </div>
+                      <% } %>
+                    </div>
+                  <% }) %>
+                </div>
+              </section>
+
+              <% if (isOwner) { %>
+                <section class="bg-[#182244] rounded-2xl p-6 space-y-4 border border-gray-700/60">
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold">คำขอเข้าร่วม</h3>
+                    <span class="text-xs text-gray-400"><%= requests.length %> รายการ</span>
+                  </div>
+                  <% if (requests.length) { %>
+                    <div class="space-y-3">
+                      <% requests.forEach(function(request) { %>
+                        <div class="bg-[#1f2e5f] rounded-xl px-3 py-3 space-y-2 border border-gray-600/60">
+                          <div class="flex items-center justify-between">
+                            <div>
+                              <p class="text-sm font-semibold text-white"><%= request.displayName %></p>
+                              <p class="text-xs text-gray-400">@<%= request.username %></p>
+                            </div>
+                            <span class="text-xs text-gray-400">รอยืนยัน</span>
+                          </div>
+                          <p class="text-xs text-gray-300 leading-relaxed">"<%= request.message %>"</p>
+                          <div class="flex gap-2 text-xs">
+                            <button type="button" class="flex-1 px-3 py-2 rounded-full bg-purple-600 hover:bg-purple-700 font-semibold">อนุมัติ</button>
+                            <button type="button" class="flex-1 px-3 py-2 rounded-full bg-gray-700 hover:bg-gray-600">ปฏิเสธ</button>
+                          </div>
+                        </div>
+                      <% }) %>
+                    </div>
+                  <% } else { %>
+                    <p class="text-sm text-gray-400">ยังไม่มีคำขอเข้าร่วม</p>
+                  <% } %>
+                </section>
+
+                <section class="bg-[#182244] rounded-2xl p-6 space-y-4 border border-gray-700/60">
+                  <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold">คำเชิญที่ส่งไป</h3>
+                    <span class="text-xs text-gray-400"><%= invites.length %> รายการ</span>
+                  </div>
+                  <% if (invites.length) { %>
+                    <div class="space-y-3">
+                      <% invites.forEach(function(invite) { %>
+                        <div class="bg-[#1f2e5f] rounded-xl px-3 py-3 flex items-center justify-between border border-gray-600/60">
+                          <div>
+                            <p class="text-sm font-semibold text-white"><%= invite.displayName %></p>
+                            <p class="text-xs text-gray-400">@<%= invite.username %></p>
+                            <p class="text-xs text-gray-500 mt-1">เชิญโดย <%= invite.invitedBy %></p>
+                          </div>
+                          <div class="flex gap-2 text-xs">
+                            <button type="button" class="px-3 py-2 rounded-full bg-gray-700 hover:bg-gray-600">ส่งซ้ำ</button>
+                            <button type="button" class="px-3 py-2 rounded-full bg-red-500/20 text-red-300 hover:bg-red-500/30">ยกเลิก</button>
+                          </div>
+                        </div>
+                      <% }) %>
+                    </div>
+                  <% } else { %>
+                    <p class="text-sm text-gray-400">ยังไม่มีคำเชิญค้างอยู่</p>
+                  <% } %>
+                  <div class="border-t border-gray-700 pt-3 space-y-2">
+                    <p class="text-xs uppercase text-gray-400">เชิญสมาชิกใหม่</p>
+                    <div class="flex gap-2">
+                      <input type="text" class="flex-1 bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400" placeholder="พิมพ์ username" />
+                      <button type="button" class="px-3 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm">เชิญ</button>
+                    </div>
+                  </div>
+                </section>
+              <% } %>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script>
+      feather.replace();
+    </script>
+  </body>
+</html>
