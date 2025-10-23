@@ -15,21 +15,27 @@
         <% const currentSearch = typeof searchQuery !== 'undefined' ? searchQuery : ''; %>
         <% const currentSearchEncoded = typeof searchQueryEncoded !== 'undefined' ? searchQueryEncoded : ''; %>
         <% const tagList = Array.isArray(exploreTags) ? exploreTags : []; %>
-        <!-- Search bar -->
+        <!-- Search aligned to the left of the content area -->
         <div class="px-4 pt-4 mt-4">
-          <div class="w-full flex items-center justify-center">
-            <form method="get" action="/explore" class="flex items-center w-full max-w-2xl bg-transparent border-2 border-gray-600 rounded-2xl px-4 py-2">
-              <i data-feather="search" class="text-white mr-3" style="width:22px;height:22px;"></i>
-              <input type="hidden" name="tag" value="<%= currentTag %>" />
-              <input
-                type="text"
-                name="q"
-                value="<%= currentSearch %>"
-                placeholder="Search"
-                class="flex-1 bg-transparent outline-none text-white placeholder-white text-base font-medium"
-                autocomplete="off"
-              />
-            </form>
+          <div class="w-full flex items-center">
+            <!-- Left-aligned search form -->
+            <div class="flex-1 max-w-3xl">
+              <form method="get" action="/explore" class="flex items-center w-full bg-transparent border-2 border-gray-600 rounded-2xl px-4 py-2">
+                <i data-feather="search" class="text-white mr-3" style="width:22px;height:22px;"></i>
+                <input type="hidden" name="tag" value="<%= currentTag %>" />
+                <input
+                  type="text"
+                  name="q"
+                  value="<%= currentSearch %>"
+                  placeholder="Search"
+                  class="flex-1 bg-transparent outline-none text-white placeholder-white text-base font-medium"
+                  autocomplete="off"
+                />
+              </form>
+            </div>
+
+            <!-- spacer to keep layout balanced -->
+            <div class="flex-1"></div>
           </div>
         </div>
         <!-- Tabs -->
