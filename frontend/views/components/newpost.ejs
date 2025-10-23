@@ -3,13 +3,219 @@
 <div class="flex items-start space-x-3 p-4 border-b border-gray-700">
   <div class="w-10 h-10 bg-gray-500 rounded-full"></div>
   <div class="flex-1">
-    <textarea placeholder="<%= ph %>" class="w-full bg-transparent text-sm resize-none outline-none"></textarea>
+    <textarea id="newpost-text" placeholder="<%= ph %>" class="w-full bg-transparent text-sm resize-none outline-none max-h-96 overflow-hidden"></textarea>
+
+    <!-- Image upload + multi-preview -->
+    <div id="previewList" class="mt-3 hidden grid grid-cols-3 gap-3"></div>
+
+    <!-- Tag picker (cards) -->
+    <div id="tagPicker" class="mt-4 hidden" aria-hidden="true">
+      <div class="text-sm text-slate-400 mb-2">Choose tags</div>
+      <div id="tagGrid" class="grid grid-cols-3 gap-3"></div>
+      <!-- hidden inputs container for form submission -->
+      <div id="tagInputs" aria-hidden="true"></div>
+    </div>
+
     <div class="flex justify-between items-center mt-2">
-      <div class="flex space-x-4 text-gray-400">
-        <i data-feather="image"></i>
-        <i data-feather="tag"></i>
+      <div class="flex items-center space-x-4 text-gray-400">
+        <label for="imageInput" class="cursor-pointer flex items-center gap-2">
+          <i data-feather="image"></i>
+          <span class="text-xs">Add images</span>
+        </label>
+        <input id="imageInput" type="file" accept="image/*" class="hidden" multiple />
+        <button id="toggleTagPicker" type="button" class="flex items-center gap-2 text-gray-400 hover:text-white focus:outline-none" aria-expanded="false" aria-controls="tagPicker">
+          <i data-feather="tag"></i>
+          <span class="sr-only">Add tag</span>
+        </button>
       </div>
       <button class="bg-purple-600 px-4 py-1 rounded-full text-sm hover:bg-purple-700">Post</button>
     </div>
   </div>
+
+  <script>
+    (function(){
+      const ta = document.getElementById('newpost-text');
+      const imgInput = document.getElementById('imageInput');
+      const preview = document.getElementById('previewContainer');
+      const previewImg = document.getElementById('previewImage');
+
+      if (ta) {
+        const resize = () => {
+          ta.style.height = 'auto';
+          // clamp to max of 384px (24rem) via CSS max-h-96
+          ta.style.height = Math.min(ta.scrollHeight, 384) + 'px';
+        };
+
+        ta.addEventListener('input', resize, { passive: true });
+        // initialize size if there's content
+        setTimeout(resize, 0);
+      }
+
+      if (imgInput) {
+        const previewList = document.getElementById('previewList');
+        let selectedFiles = [];
+
+        const syncInputFiles = () => {
+          try {
+            const dt = new DataTransfer();
+            selectedFiles.forEach(f => dt.items.add(f));
+            imgInput.files = dt.files;
+          } catch (e) {
+            // fallback: do nothing (some older browsers)
+          }
+        };
+
+        const renderPreviews = () => {
+          previewList.innerHTML = '';
+          if (selectedFiles.length === 0) {
+            previewList.classList.add('hidden');
+            return;
+          }
+          previewList.classList.remove('hidden');
+
+          selectedFiles.forEach((file, idx) => {
+            const reader = new FileReader();
+            const cell = document.createElement('div');
+            cell.className = 'relative rounded overflow-hidden bg-gray-50 flex items-center justify-center';
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'absolute top-1 right-1 bg-white/90 hover:bg-white text-gray-700 rounded-full p-1 shadow transition transform hover:scale-105 focus:outline-none';
+            removeBtn.setAttribute('aria-label', 'Remove image');
+            removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9.293l4.646-4.647a1 1 0 011.414 1.414L11.414 10.707l4.646 4.646a1 1 0 01-1.414 1.414L10 12.121l-4.646 4.646a1 1 0 01-1.414-1.414l4.646-4.646L3.94 6.06A1 1 0 015.354 4.646L10 9.293z" clip-rule="evenodd"/></svg>';
+
+            const img = document.createElement('img');
+            img.className = 'object-cover w-full h-32 transition-transform duration-150';
+            img.alt = 'preview';
+
+            removeBtn.addEventListener('click', (ev) => {
+              ev.preventDefault();
+              // animate then remove
+              img.classList.add('opacity-0', 'scale-95');
+              cell.classList.add('pointer-events-none');
+              setTimeout(() => {
+                selectedFiles.splice(idx, 1);
+                syncInputFiles();
+                renderPreviews();
+              }, 180);
+            });
+
+            reader.onload = function(ev) {
+              img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+
+            cell.appendChild(removeBtn);
+            cell.appendChild(img);
+            previewList.appendChild(cell);
+          });
+        };
+
+        imgInput.addEventListener('change', (e) => {
+          const files = Array.from(e.target.files || []);
+          files.forEach(f => {
+            // avoid duplicates by name+size
+            const exists = selectedFiles.some(sf => sf.name === f.name && sf.size === f.size && sf.lastModified === f.lastModified);
+            if (!exists) selectedFiles.push(f);
+          });
+          syncInputFiles();
+          renderPreviews();
+          // reset input value so re-selecting same file later triggers change
+          imgInput.value = '';
+        });
+      }
+
+      // --- Tag picker logic ---
+      const tags = [
+        { slug: '2d-art', label: '2D Art' },
+        { slug: '3d-model', label: '3D Model' },
+        { slug: 'graphic-design', label: 'Graphic Design' },
+        { slug: 'animation', label: 'Animation' },
+        { slug: 'game', label: 'Game' },
+        { slug: 'ux-ui', label: 'UX/UI design' }
+      ];
+
+      const tagGrid = document.getElementById('tagGrid');
+      const tagInputs = document.getElementById('tagInputs');
+      const selectedTags = new Set();
+
+      const renderTags = () => {
+        tagGrid.innerHTML = '';
+        tags.forEach(t => {
+          const card = document.createElement('button');
+          card.type = 'button';
+          card.className = 'flex flex-col items-center p-3 rounded-lg bg-[#1f2743] border border-[#3b3450] text-white/90 hover:border-pink-400 transition focus:outline-none';
+          card.setAttribute('data-slug', t.slug);
+
+    const label = document.createElement('div');
+    label.className = 'text-sm text-center';
+    label.textContent = t.label;
+
+    card.appendChild(label);
+
+          card.addEventListener('click', () => {
+            if (selectedTags.has(t.slug)) {
+              selectedTags.delete(t.slug);
+              card.classList.remove('ring-2', 'ring-pink-400', 'border-pink-300');
+            } else {
+              selectedTags.add(t.slug);
+              card.classList.add('ring-2', 'ring-pink-400', 'border-pink-300');
+            }
+            syncTagInputs();
+            updateToggleState();
+          });
+
+          tagGrid.appendChild(card);
+        });
+      };
+
+      const syncTagInputs = () => {
+        tagInputs.innerHTML = '';
+        selectedTags.forEach(slug => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'tags[]';
+          input.value = slug;
+          tagInputs.appendChild(input);
+        });
+        updateToggleState();
+      };
+
+      renderTags();
+
+    // toggle tag picker and update icon color when active
+    const toggleBtn = document.getElementById('toggleTagPicker');
+    const tagPicker = document.getElementById('tagPicker');
+    const tagIcon = toggleBtn ? toggleBtn.querySelector('[data-feather]') : null;
+
+    const updateToggleState = () => {
+      const hasSelected = selectedTags.size > 0;
+      const isOpen = tagPicker && !tagPicker.classList.contains('hidden');
+      const active = hasSelected || isOpen;
+      if (!toggleBtn) return;
+      // change color classes
+      if (active) {
+        toggleBtn.classList.remove('text-gray-400');
+        toggleBtn.classList.add('text-pink-400');
+        if (tagIcon) tagIcon.classList.add('text-pink-400');
+      } else {
+        toggleBtn.classList.remove('text-pink-400');
+        toggleBtn.classList.add('text-gray-400');
+        if (tagIcon) tagIcon.classList.remove('text-pink-400');
+      }
+    };
+
+    if (toggleBtn && tagPicker) {
+      toggleBtn.addEventListener('click', () => {
+        const isHidden = tagPicker.classList.toggle('hidden');
+        tagPicker.setAttribute('aria-hidden', isHidden ? 'true' : 'false');
+        toggleBtn.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
+        updateToggleState();
+      });
+    }
+
+    // initial state
+    updateToggleState();
+    })();
+  </script>
 </div>
