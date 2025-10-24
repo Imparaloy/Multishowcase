@@ -21,12 +21,14 @@ app.use(express.static(join(__dirname, "public")));
 
 import viewRoutes from "./routes/index.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import groupsRoutes from "./routes/groups.routes.js";
 
 app.use("/", viewRoutes);
 app.use("/", authRoutes);
+app.use("/", groupsRoutes);
 
 // 404
 app.use((req, res) => res.status(404).send("Not found"));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`http://localhost:${PORT}/`));
+app.listen(PORT, () => console.log(`http://localhost:${PORT}`));
