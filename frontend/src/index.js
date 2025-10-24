@@ -269,26 +269,6 @@ app.get("/explore", (req, res) => {
   });
 });
 
-app.get("/groups", (req, res) => {
-  const groupId = parseInt(req.query.id || "1", 10);
-  const group = groupsMock.find((item) => item.id === groupId) || groupsMock[0];
-
-  const isOwner = group.owner === currentUser.username;
-  const members = group.members;
-  const currentMembership = members.find((member) => member.username === currentUser.username);
-  const isMember = Boolean(currentMembership);
-
-  res.render("groups", {
-    currentUser,
-    groups: groupsMock,
-    activeGroup: group,
-    isOwner,
-    isMember,
-    currentMembership,
-    activePage: "groups",
-  });
-});
-
 // --- Profile page route ---
 app.get("/profile", (req, res) => {
   const me = {
