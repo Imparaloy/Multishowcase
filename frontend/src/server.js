@@ -17,15 +17,22 @@ app.set("views", join(__dirname, "views"));
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(join(__dirname, "public")));
+// Serve static files from root /public
+app.use(express.static(join(__dirname, "..", "public")));
 
-import viewRoutes from "./routes/index.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import groupsRoutes from "./routes/groups.routes.js";
+import homeRoutes from "./routes/home.routes.js";
+import exploreRoutes from "./routes/explore.routes.js";
+import commentRoutes from "./routes/comment.routes.js";
+import profileRoutes from "./routes/profile.routes.js";
 
-app.use("/", viewRoutes);
 app.use("/", authRoutes);
 app.use("/", groupsRoutes);
+app.use("/", homeRoutes);
+app.use("/", exploreRoutes);
+app.use("/", commentRoutes);
+app.use("/", profileRoutes);
 
 // 404
 app.use((req, res) => res.status(404).send("Not found"));

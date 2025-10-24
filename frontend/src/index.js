@@ -118,8 +118,8 @@ app.get("/comment", (req, res) => {
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-// Static files
-app.use(express.static(path.join(__dirname, "public")));
+// Static files (root /public)
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 // --- Sample data ---
 const forYouPosts = commentMock;
@@ -310,7 +310,6 @@ app.post('/logout', (req, res) => {
     try {
       req.logout();
     } catch (e) {
-      // noop
     }
   }
 
