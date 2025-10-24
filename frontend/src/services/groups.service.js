@@ -42,7 +42,7 @@ export async function getAllGroups() {
   return await readAll();
 }
 
-export async function addGroup({ name, description, createdBy }) {
+export async function addGroup({ name, description, createdBy, tags }) {
   const groups = await readAll();
   const now = new Date().toISOString();
   const group = {
@@ -51,6 +51,7 @@ export async function addGroup({ name, description, createdBy }) {
     description: String(description || '').trim(),
     createdAt: now,
     createdBy: createdBy || null,
+    tags: Array.isArray(tags) ? tags : [],
     members: [],
   };
   groups.push(group);
