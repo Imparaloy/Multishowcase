@@ -28,7 +28,7 @@
           <span class="sr-only">Add tag</span>
         </button>
       </div>
-      <button class="bg-purple-600 px-4 py-1 rounded-full text-sm hover:bg-purple-700">Post</button>
+      <button id="submitPost" class="bg-purple-600 px-4 py-1 rounded-full text-sm hover:bg-purple-700">Post</button>
     </div>
   </div>
 
@@ -38,6 +38,64 @@
       const imgInput = document.getElementById('imageInput');
       const preview = document.getElementById('previewContainer');
       const previewImg = document.getElementById('previewImage');
+      let selectedFiles = []; // ย้ายมาประกาศที่นี่
+      
+      // ย้าย function มาไว้ที่นี่
+      const syncInputFiles = () => {
+        try {
+          const dt = new DataTransfer();
+          selectedFiles.forEach(f => dt.items.add(f));
+          imgInput.files = dt.files;
+        } catch (e) {
+          // fallback: do nothing (some older browsers)
+        }
+      };
+
+      const renderPreviews = () => {
+        const previewList = document.getElementById('previewList');
+        previewList.innerHTML = '';
+        if (selectedFiles.length === 0) {
+          previewList.classList.add('hidden');
+          return;
+        }
+        previewList.classList.remove('hidden');
+
+        selectedFiles.forEach((file, idx) => {
+          const reader = new FileReader();
+          const cell = document.createElement('div');
+          cell.className = 'relative rounded overflow-hidden bg-gray-50 flex items-center justify-center';
+
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'absolute top-1 right-1 bg-white/90 hover:bg-white text-gray-700 rounded-full p-1 shadow transition transform hover:scale-105 focus:outline-none';
+          removeBtn.setAttribute('aria-label', 'Remove image');
+          removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9.293l4.646-4.647a1 1 0 011.414 1.414L11.414 10.707l4.646 4.646a1 1 0 01-1.414 1.414L10 12.121l-4.646 4.646a1 1 0 01-1.414-1.414l4.646-4.646L3.94 6.06A1 1 0 015.354 4.646L10 9.293z" clip-rule="evenodd"/></svg>';
+
+          const img = document.createElement('img');
+          img.className = 'object-cover w-full h-32 transition-transform duration-150';
+          img.alt = 'preview';
+
+          removeBtn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            img.classList.add('opacity-0', 'scale-95');
+            cell.classList.add('pointer-events-none');
+            setTimeout(() => {
+              selectedFiles.splice(idx, 1);
+              syncInputFiles();
+              renderPreviews();
+            }, 180);
+          });
+
+          reader.onload = function(ev) {
+            img.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+
+          cell.appendChild(removeBtn);
+          cell.appendChild(img);
+          previewList.appendChild(cell);
+        });
+      };
 
       if (ta) {
         const resize = () => {
@@ -51,65 +109,68 @@
         setTimeout(resize, 0);
       }
 
-      if (imgInput) {
-        const previewList = document.getElementById('previewList');
-        let selectedFiles = [];
-
-        const syncInputFiles = () => {
-          try {
-            const dt = new DataTransfer();
-            selectedFiles.forEach(f => dt.items.add(f));
-            imgInput.files = dt.files;
-          } catch (e) {
-            // fallback: do nothing (some older browsers)
-          }
-        };
-
-        const renderPreviews = () => {
-          previewList.innerHTML = '';
-          if (selectedFiles.length === 0) {
-            previewList.classList.add('hidden');
+      // Handle post submission
+      const submitBtn = document.getElementById('submitPost');
+      if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+          const content = ta.value.trim();
+          if (!content) {
+            alert('Please enter some content for your post');
             return;
           }
-          previewList.classList.remove('hidden');
 
-          selectedFiles.forEach((file, idx) => {
-            const reader = new FileReader();
-            const cell = document.createElement('div');
-            cell.className = 'relative rounded overflow-hidden bg-gray-50 flex items-center justify-center';
+          const formData = new FormData();
+          formData.append('content', content);
+          
+          // Add selected images if any
+          if (selectedFiles) {
+            selectedFiles.forEach((file, index) => {
+              formData.append(`images`, file);
+            });
+          }
 
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'absolute top-1 right-1 bg-white/90 hover:bg-white text-gray-700 rounded-full p-1 shadow transition transform hover:scale-105 focus:outline-none';
-            removeBtn.setAttribute('aria-label', 'Remove image');
-            removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9.293l4.646-4.647a1 1 0 011.414 1.414L11.414 10.707l4.646 4.646a1 1 0 01-1.414 1.414L10 12.121l-4.646 4.646a1 1 0 01-1.414-1.414l4.646-4.646L3.94 6.06A1 1 0 015.354 4.646L10 9.293z" clip-rule="evenodd"/></svg>';
+          // Add selected tags if any
+          if (selectedTags && selectedTags.size > 0) {
+            formData.append('tags', Array.from(selectedTags).join(','));
+          }
 
-            const img = document.createElement('img');
-            img.className = 'object-cover w-full h-32 transition-transform duration-150';
-            img.alt = 'preview';
+          try {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Posting...';
 
-            removeBtn.addEventListener('click', (ev) => {
-              ev.preventDefault();
-              // animate then remove
-              img.classList.add('opacity-0', 'scale-95');
-              cell.classList.add('pointer-events-none');
-              setTimeout(() => {
-                selectedFiles.splice(idx, 1);
-                syncInputFiles();
-                renderPreviews();
-              }, 180);
+            const response = await fetch('/api/posts', {
+              method: 'POST',
+              body: formData
             });
 
-            reader.onload = function(ev) {
-              img.src = ev.target.result;
-            };
-            reader.readAsDataURL(file);
+            if (!response.ok) {
+              throw new Error('Failed to create post');
+            }
 
-            cell.appendChild(removeBtn);
-            cell.appendChild(img);
-            previewList.appendChild(cell);
-          });
-        };
+            // Clear form and reset state
+            ta.value = '';
+            if (selectedFiles) {
+              selectedFiles = [];
+              renderPreviews();
+            }
+            if (selectedTags) {
+              selectedTags.clear();
+              syncTagInputs();
+            }
+
+            // Refresh the page or update the feed
+            window.location.reload();
+          } catch (error) {
+            console.error('Error creating post:', error);
+            alert('Failed to create post. Please try again.');
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Post';
+          }
+        });
+      }
+
+      if (imgInput) {
 
         imgInput.addEventListener('change', (e) => {
           const files = Array.from(e.target.files || []);
