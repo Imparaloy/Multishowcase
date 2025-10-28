@@ -12,7 +12,7 @@ const pool = new Pool({
   password: process.env.PGPASSWORD,
   database: process.env.PGDATABASE,
   port: process.env.PGPORT || 5432,
-  ssl: false, // ถ้าใช้กับ RDS อาจต้องเป็น { rejectUnauthorized: false }
+  ssl: { require: true, rejectUnauthorized: false }, // ถ้าใช้กับ RDS อาจต้องเป็น { rejectUnauthorized: false }
 });
 
 // ทดสอบการเชื่อมต่อ
