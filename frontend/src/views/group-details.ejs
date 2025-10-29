@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="th">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title><%= title || 'Group Details' %></title>
+		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		<script src="https://unpkg.com/feather-icons"></script>
+	</head>
+	<body class="bg-[#0f1533] text-white font-sans">
+		<% const activePage = 'groups'; %>
+		<div class="flex mx-auto min-h-screen">
+			<!-- Sidebar -->
+			<%- include('components/sidebar', { activePage: 'groups', currentUser: typeof currentUser !== 'undefined' ? currentUser : null }) %>
+
+			<main class="flex-1 border-x p-2 rounded border-gray-700">
+				<div class="px-4 pt-6 space-y-6">
+					<!-- Group Header -->
+					<section class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60 space-y-4">
+						<div class="flex items-center justify-between gap-3 flex-wrap">
+							<div>
+								<h2 class="text-2xl font-bold text-white"><%= group.name %></h2>
+								<p class="mt-1 text-gray-300"><%= group.description || 'ไม่มีคำอธิบาย' %></p>
+								<div class="mt-2 flex items-center gap-4 text-sm text-gray-400">
+									<span class="inline-flex items-center gap-1">
+										<i data-feather="users" class="w-4 h-4"></i>
+										<%= Array.isArray(group.members) ? group.members.length : 0 %> สมาชิก
+									</span>
+									<span class="inline-flex items-center gap-1">
+										<i data-feather="calendar" class="w-4 h-4"></i>
+										สร้างเมื่อ <%= new Date(group.createdAt).toLocaleDateString('th-TH') %>
+									</span>
+									<span class="inline-flex items-center gap-1">
+										<i data-feather="user" class="w-4 h-4"></i>
+										Owner: <%= group.createdBy %>
+									</span>
+								</div>
+							</div>
+							<div class="flex items-center gap-2">
+								<% if (isOwner) { %>
+									<button id="editGroupBtn" class="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-sm font-semibold flex items-center gap-2">
+										<i data-feather="edit-2" class="w-4 h-4"></i>
+										แก้ไขกลุ่ม
+									</button>
+									<button id="deleteGroupBtn" class="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 text-sm font-semibold flex items-center gap-2">
+										<i data-feather="trash-2" class="w-4 h-4"></i>
+										ลบกลุ่ม
+									</button>
+								<% } else if (isMember) { %>
+									<button id="leaveGroupBtn" class="px-4 py-2 rounded-full bg-gray-600 hover:bg-gray-700 text-sm font-semibold flex items-center gap-2">
+										<i data-feather="log-out" class="w-4 h-4"></i>
+										ออกจากกลุ่ม
+									</button>
+								<% } else { %>
+									<button id="joinGroupBtn" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
+										<i data-feather="user-plus" class="w-4 h-4"></i>
+										ขอเข้าร่วมกลุ่ม
+									</button>
+								<% } %>
+							</div>
+						</div>
+						<% if (Array.isArray(group.tags) && group.tags.length) { %>
+							<div class="flex flex-wrap gap-2">
+								<% group.tags.forEach(function(tag){ %>
+									<span class="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40"><%= tag %></span>
+								<% }) %>
+							</div>
+						<% } %>
+					</section>
+
+					<!-- Tabs Navigation -->
+					<div class="bg-[#182244] rounded-2xl p-2 border border-gray-700/60">
+						<div class="flex gap-2">
+							<button data-tab="posts" class="tab-btn px-4 py-2 rounded-full text-sm bg-purple-500/30 text-white border border-purple-400">โพสต์ในกลุ่ม</button>
+							<button data-tab="members" class="tab-btn px-4 py-2 rounded-full text-sm bg-[#1f2e5f] text-gray-300 hover:text-white hover:bg-purple-500/20">สมาชิก</button>
+							<% if (isOwner) { %>
+								<button data-tab="requests" class="tab-btn px-4 py-2 rounded-full text-sm bg-[#1f2e5f] text-gray-300 hover:text-white hover:bg-purple-500/20">
+									คำขอเข้าร่วม
+									<% if (pendingRequests && pendingRequests.length > 0) { %>
+										<span class="ml-1 px-2 py-0.5 rounded-full bg-red-500 text-white text-xs"><%= pendingRequests.length %></span>
+									<% } %>
+								</button>
+							<% } %>
+						</div>
+					</div>
+
+					<!-- Posts Tab -->
+					<div id="posts-tab" class="tab-content">
+						<section class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60 space-y-4">
+							<% if (isMember) { %>
+								<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60">
+									<h3 class="text-lg font-semibold mb-3">สร้างโพสต์ใหม่</h3>
+									<form id="postForm" class="space-y-3">
+										<div>
+											<textarea id="postContent" name="content" placeholder="แชร์ความคิดเห็นของคุณ..." class="w-full min-h-[100px] bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400 text-white placeholder:text-gray-400"></textarea>
+										</div>
+										<div class="flex items-center justify-end gap-2">
+											<button type="submit" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">โพสต์</button>
+										</div>
+									</form>
+								</div>
+							<% } %>
+							
+							<div id="postsList" class="space-y-4">
+								<% if (!posts || posts.length === 0) { %>
+									<div class="text-center py-10 text-gray-300">ยังไม่มีโพสต์ในกลุ่มนี้</div>
+								<% } else { %>
+									<% posts.forEach(post => { %>
+										<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60">
+											<div class="flex items-start justify-between gap-3">
+												<div class="flex-1">
+													<div class="flex items-center gap-2 mb-2">
+														<span class="font-semibold text-white"><%= post.author %></span>
+														<span class="text-xs text-gray-400"><%= new Date(post.createdAt).toLocaleString('th-TH') %></span>
+													</div>
+													<p class="text-gray-200"><%= post.content %></p>
+												</div>
+												<% if (isOwner || (post.author === currentUser?.username)) { %>
+													<button class="delete-post-btn text-red-400 hover:text-red-300" data-post-id="<%= post.id %>">
+														<i data-feather="trash-2" class="w-4 h-4"></i>
+													</button>
+												<% } %>
+											</div>
+										</div>
+									<% }) %>
+								<% } %>
+							</div>
+						</section>
+					</div>
+
+					<!-- Members Tab -->
+					<div id="members-tab" class="tab-content hidden">
+						<section class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60">
+							<h3 class="text-lg font-semibold mb-4">สมาชิกทั้งหมด</h3>
+							<div id="membersList" class="space-y-3">
+								<% if (!group.members || group.members.length === 0) { %>
+									<div class="text-center py-10 text-gray-300">ยังไม่มีสมาชิกในกลุ่มนี้</div>
+								<% } else { %>
+									<% group.members.forEach(member => { %>
+										<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60 flex items-center justify-between">
+											<div class="flex items-center gap-3">
+												<div class="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-semibold">
+													<%= member.displayName ? member.displayName.charAt(0).toUpperCase() : member.username.charAt(0).toUpperCase() %>
+												</div>
+												<div>
+													<div class="font-semibold text-white"><%= member.displayName || member.username %></div>
+													<div class="text-sm text-gray-400">@<%= member.username %></div>
+												</div>
+											</div>
+											<div class="flex items-center gap-2">
+												<span class="px-3 py-1 rounded-full text-xs <%= member.role === 'owner' ? 'bg-yellow-500/20 text-yellow-200 border border-yellow-400/40' : 'bg-green-500/20 text-green-200 border border-green-400/40' %>">
+													<%= member.role === 'owner' ? 'Owner' : 'Member' %>
+												</span>
+												<% if (isOwner && member.username !== currentUser?.username) { %>
+													<div class="relative">
+														<button class="role-dropdown-btn px-2 py-1 rounded bg-gray-600 hover:bg-gray-500 text-xs" data-member="<%= member.username %>">
+															เปลี่ยนบทบาท <i data-feather="chevron-down" class="w-3 h-3 inline"></i>
+														</button>
+														<div class="role-dropdown hidden absolute right-0 mt-1 w-32 bg-[#1f2e5f] border border-gray-600 rounded-lg shadow-lg z-10">
+															<button class="role-option w-full text-left px-3 py-2 text-sm hover:bg-purple-500/20" data-member="<%= member.username %>" data-role="member">Member</button>
+															<button class="role-option w-full text-left px-3 py-2 text-sm hover:bg-purple-500/20" data-member="<%= member.username %>" data-role="owner">Owner</button>
+														</div>
+													</div>
+													<button class="remove-member-btn text-red-400 hover:text-red-300" data-member="<%= member.username %>">
+														<i data-feather="user-minus" class="w-4 h-4"></i>
+													</button>
+												<% } %>
+											</div>
+										</div>
+									<% }) %>
+								<% } %>
+							</div>
+						</section>
+					</div>
+
+					<!-- Requests Tab (Owner only) -->
+					<% if (isOwner) { %>
+						<div id="requests-tab" class="tab-content hidden">
+							<section class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60">
+								<h3 class="text-lg font-semibold mb-4">คำขอเข้าร่วมกลุ่ม</h3>
+								<div id="requestsList" class="space-y-3">
+									<% if (!pendingRequests || pendingRequests.length === 0) { %>
+										<div class="text-center py-10 text-gray-300">ไม่มีคำขอเข้าร่วมในขณะนี้</div>
+									<% } else { %>
+										<% pendingRequests.forEach(request => { %>
+											<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60 flex items-center justify-between">
+												<div class="flex items-center gap-3">
+													<div class="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-semibold">
+														<%= request.displayName ? request.displayName.charAt(0).toUpperCase() : request.username.charAt(0).toUpperCase() %>
+													</div>
+													<div>
+														<div class="font-semibold text-white"><%= request.displayName || request.username %></div>
+														<div class="text-sm text-gray-400">@<%= request.username %></div>
+														<div class="text-xs text-gray-500 mt-1">ขอเข้าร่วมเมื่อ <%= new Date(request.requestedAt).toLocaleString('th-TH') %></div>
+													</div>
+												</div>
+												<div class="flex items-center gap-2">
+													<button class="approve-request-btn px-3 py-1 rounded-full bg-green-600 hover:bg-green-700 text-xs" data-user="<%= request.username %>">
+														อนุมัติ
+													</button>
+													<button class="reject-request-btn px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-xs" data-user="<%= request.username %>">
+														ปฏิเสธ
+													</button>
+												</div>
+											</div>
+										<% }) %>
+									<% } %>
+								</div>
+							</section>
+						</div>
+					<% } %>
+				</div>
+			</main>
+		</div>
+
+		<script>
+			feather.replace();
+			
+			const groupId = '<%= group.id %>';
+			const isOwner = ('<%= isOwner %>' === 'true');
+			const isMember = ('<%= isMember %>' === 'true');
+			
+			// Tab switching
+			const tabBtns = document.querySelectorAll('.tab-btn');
+			const tabContents = document.querySelectorAll('.tab-content');
+			
+			tabBtns.forEach(btn => {
+				btn.addEventListener('click', () => {
+					const targetTab = btn.dataset.tab;
+					
+					// Update button styles
+					tabBtns.forEach(b => {
+						b.className = 'tab-btn px-4 py-2 rounded-full text-sm bg-[#1f2e5f] text-gray-300 hover:text-white hover:bg-purple-500/20';
+					});
+					btn.className = 'tab-btn px-4 py-2 rounded-full text-sm bg-purple-500/30 text-white border border-purple-400';
+					
+					// Show/hide content
+					tabContents.forEach(content => {
+						content.classList.add('hidden');
+					});
+					document.getElementById(`${targetTab}-tab`).classList.remove('hidden');
+				});
+			});
+			
+			// Join group
+			const joinGroupBtn = document.getElementById('joinGroupBtn');
+			if (joinGroupBtn) {
+				joinGroupBtn.addEventListener('click', async () => {
+					try {
+						const res = await fetch(`/groups/${groupId}/join`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' }
+						});
+						const data = await res.json();
+						if (res.ok) {
+							location.reload();
+						} else {
+							alert(data.message || 'ไม่สามารถขอเข้าร่วมกลุ่มได้');
+						}
+					} catch (err) {
+						alert('เกิดข้อผิดพลาดในการขอเข้าร่วมกลุ่ม');
+					}
+				});
+			}
+			
+			// Leave group
+			const leaveGroupBtn = document.getElementById('leaveGroupBtn');
+			if (leaveGroupBtn) {
+				leaveGroupBtn.addEventListener('click', async () => {
+					if (confirm('คุณต้องการออกจากกลุ่มนี้ใช่หรือไม่?')) {
+						try {
+							const res = await fetch(`/groups/${groupId}/leave`, {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' }
+							});
+							const data = await res.json();
+							if (res.ok) {
+								location.href = '/groups';
+							} else {
+								alert(data.message || 'ไม่สามารถออกจากกลุ่มได้');
+							}
+						} catch (err) {
+							alert('เกิดข้อผิดพลาดในการออกจากกลุ่ม');
+						}
+					}
+				});
+			}
+			
+			// Delete group
+			const deleteGroupBtn = document.getElementById('deleteGroupBtn');
+			if (deleteGroupBtn) {
+				deleteGroupBtn.addEventListener('click', async () => {
+					if (confirm('คุณต้องการลบกลุ่มนี้ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้')) {
+						try {
+							const res = await fetch(`/groups/${groupId}`, {
+								method: 'DELETE',
+								headers: { 'Content-Type': 'application/json' }
+							});
+							const data = await res.json();
+							if (res.ok) {
+								location.href = '/groups';
+							} else {
+								alert(data.message || 'ไม่สามารถลบกลุ่มได้');
+							}
+						} catch (err) {
+							alert('เกิดข้อผิดพลาดในการลบกลุ่ม');
+						}
+					}
+				});
+			}
+			
+			// Create post
+			const postForm = document.getElementById('postForm');
+			if (postForm) {
+				postForm.addEventListener('submit', async (e) => {
+					e.preventDefault();
+					const content = document.getElementById('postContent').value.trim();
+					if (!content) return;
+					
+					try {
+						const res = await fetch(`/groups/${groupId}/posts`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ content })
+						});
+						const data = await res.json();
+						if (res.ok) {
+							location.reload();
+						} else {
+							alert(data.message || 'ไม่สามารถสร้างโพสต์ได้');
+						}
+					} catch (err) {
+						alert('เกิดข้อผิดพลาดในการสร้างโพสต์');
+					}
+				});
+			}
+			
+			// Delete post
+			document.querySelectorAll('.delete-post-btn').forEach(btn => {
+				btn.addEventListener('click', async () => {
+					const postId = btn.dataset.postId;
+					if (confirm('คุณต้องการลบโพสต์นี้ใช่หรือไม่?')) {
+						try {
+							const res = await fetch(`/groups/${groupId}/posts/${postId}`, {
+								method: 'DELETE',
+								headers: { 'Content-Type': 'application/json' }
+							});
+							const data = await res.json();
+							if (res.ok) {
+								location.reload();
+							} else {
+								alert(data.message || 'ไม่สามารถลบโพสต์ได้');
+							}
+						} catch (err) {
+							alert('เกิดข้อผิดพลาดในการลบโพสต์');
+						}
+					}
+				});
+			});
+			
+			// Role dropdown
+			document.querySelectorAll('.role-dropdown-btn').forEach(btn => {
+				btn.addEventListener('click', () => {
+					const dropdown = btn.nextElementSibling;
+					dropdown.classList.toggle('hidden');
+				});
+			});
+			
+			// Change role
+			document.querySelectorAll('.role-option').forEach(btn => {
+				btn.addEventListener('click', async () => {
+					const username = btn.dataset.member;
+					const role = btn.dataset.role;
+					
+					try {
+						const res = await fetch(`/groups/${groupId}/members/${username}/role`, {
+							method: 'PUT',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify({ role })
+						});
+						const data = await res.json();
+						if (res.ok) {
+							location.reload();
+						} else {
+							alert(data.message || 'ไม่สามารถเปลี่ยนบทบาทได้');
+						}
+					} catch (err) {
+						alert('เกิดข้อผิดพลาดในการเปลี่ยนบทบาท');
+					}
+				});
+			});
+			
+			// Remove member
+			document.querySelectorAll('.remove-member-btn').forEach(btn => {
+				btn.addEventListener('click', async () => {
+					const username = btn.dataset.member;
+					if (confirm(`คุณต้องการลบสมาชิก ${username} ออกจากกลุ่มใช่หรือไม่?`)) {
+						try {
+							const res = await fetch(`/groups/${groupId}/members/${username}`, {
+								method: 'DELETE',
+								headers: { 'Content-Type': 'application/json' }
+							});
+							const data = await res.json();
+							if (res.ok) {
+								location.reload();
+							} else {
+								alert(data.message || 'ไม่สามารถลบสมาชิกได้');
+							}
+						} catch (err) {
+							alert('เกิดข้อผิดพลาดในการลบสมาชิก');
+						}
+					}
+				});
+			});
+			
+			// Approve request
+			document.querySelectorAll('.approve-request-btn').forEach(btn => {
+				btn.addEventListener('click', async () => {
+					const username = btn.dataset.user;
+					try {
+						const res = await fetch(`/groups/${groupId}/requests/${username}/approve`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' }
+						});
+						const data = await res.json();
+						if (res.ok) {
+							location.reload();
+						} else {
+							alert(data.message || 'ไม่สามารถอนุมัติคำขอได้');
+						}
+					} catch (err) {
+						alert('เกิดข้อผิดพลาดในการอนุมัติคำขอ');
+					}
+				});
+			});
+			
+			// Reject request
+			document.querySelectorAll('.reject-request-btn').forEach(btn => {
+				btn.addEventListener('click', async () => {
+					const username = btn.dataset.user;
+					try {
+						const res = await fetch(`/groups/${groupId}/requests/${username}/reject`, {
+							method: 'POST',
+							headers: { 'Content-Type': 'application/json' }
+						});
+						const data = await res.json();
+						if (res.ok) {
+							location.reload();
+						} else {
+							alert(data.message || 'ไม่สามารถปฏิเสธคำขอได้');
+						}
+					} catch (err) {
+						alert('เกิดข้อผิดพลาดในการปฏิเสธคำขอ');
+					}
+				});
+			});
+			
+			// Close dropdowns when clicking outside
+			document.addEventListener('click', (e) => {
+				if (!e.target.closest('.role-dropdown-btn') && !e.target.closest('.role-dropdown')) {
+					document.querySelectorAll('.role-dropdown').forEach(dropdown => {
+						dropdown.classList.add('hidden');
+					});
+				}
+			});
+		</script>
+	</body>
+</html>

@@ -53,14 +53,15 @@
 														 const isMine = viewer && (g.createdBy === viewer.username || (Array.isArray(g.members) && g.members.some(m => m.username === viewer.username)));
 														 const membersCount = Array.isArray(g.members) ? g.members.length : 0;
 												%>
-													<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60 hover:border-purple-400/50 transition" 
+													<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60 hover:border-purple-400/50 transition cursor-pointer"
 															 data-name="<%- g.name.toLowerCase() %>"
 															 data-desc="<%- (g.description || '').toLowerCase() %>"
 															 data-created-at="<%= created.getTime() %>"
 															 data-members="<%= membersCount %>"
-															 data-is-mine="<%= isMine ? '1' : '0' %>">
+															 data-is-mine="<%= isMine ? '1' : '0' %>"
+															 onclick="window.location.href='/groups/<%= g.id %>'">
 																			<div class="flex items-start justify-between gap-3">
-																				<div>
+																				<div class="flex-1">
 																<h3 class="text-lg font-semibold text-white"><%= g.name %></h3>
 																<% if (g.description) { %>
 																	<p class="mt-1 text-sm text-gray-200"><%= g.description %></p>
@@ -69,7 +70,7 @@
 																				<% if (isMine) { %>
 																					<span class="px-3 py-1 rounded-full bg-green-600/30 text-green-200 border border-green-500/40 text-xs">Member</span>
 																				<% } else { %>
-																					<button type="button" class="px-3 py-1 rounded-full bg-gray-700 hover:bg-gray-600 text-xs">Join</button>
+																					<button type="button" class="px-3 py-1 rounded-full bg-gray-700 hover:bg-gray-600 text-xs" onclick="event.stopPropagation(); window.location.href='/groups/<%= g.id %>'">View</button>
 																				<% } %>
 														</div>
 														<div class="mt-3 flex items-center gap-4 text-xs text-gray-300">
