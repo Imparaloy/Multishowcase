@@ -19,7 +19,7 @@ export const createPost = async (req, res) => {
     const tags = req.body.tags ? req.body.tags.split(',') : [];
     
     // ดึง authorId จาก session/auth middleware
-    const authorId = req.user?.user_id;
+    const authorId = req.user?.sub; // Using 'sub' from Cognito JWT as user_id
     if (!authorId) {
       return res.status(401).json({ success: false, error: 'Unauthorized: No user session' });
     }
@@ -87,6 +87,63 @@ export const createPost = async (req, res) => {
       success: false, 
       error: 'Failed to create post',
       details: err.message 
+    });
+  } finally {
+    client.release();
+  }
+};
+
+export const deletePost = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    const postId = req.params.id;
+    // Get user_id from the authenticated user
+    const userId = req.user?.sub; // Using 'sub' from Cognito JWT as user_id
+    const userRole = req.user?.groups?.includes('admin') ? 'admin' : 'user';
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: No user session' });
+    }
+    
+    // Check if user is the post owner or an admin
+    const postResult = await client.query(
+      'SELECT author_id FROM posts WHERE post_id = $1',
+      [postId]
+    );
+    
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Post not found' });
+    }
+    
+    const postAuthorId = postResult.rows[0].author_id;
+    
+    if (postAuthorId !== userId && userRole !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Forbidden: You can only delete your own posts' });
+    }
+    
+    // Delete post media first
+    await client.query('DELETE FROM post_media WHERE post_id = $1', [postId]);
+    
+    // Delete the post
+    await client.query('DELETE FROM posts WHERE post_id = $1', [postId]);
+    
+    await client.query('COMMIT');
+    
+    res.status(200).json({
+      success: true,
+      message: 'Post deleted successfully'
+    });
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error deleting post:', err);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete post',
+      details: err.message
     });
   } finally {
     client.release();

@@ -1,7 +1,8 @@
 <% const userContext = typeof currentUser !== 'undefined' ? currentUser : null; %>
 <% const isOwner = userContext && typeof username !== 'undefined' && userContext.username === username; %>
 <% const isAdmin = userContext && userContext.role === 'admin'; %>
-<% const canDelete = isOwner || isAdmin; %>
+<% const canDeleteFromProps = typeof canDelete !== 'undefined' ? canDelete : null; %>
+<% const canDeletePost = canDeleteFromProps !== null ? canDeleteFromProps : (isOwner || isAdmin); %>
 <div class="bg-[#182244] rounded-xl p-4 mb-4 text-white">
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -22,9 +23,9 @@
       </summary>
       <div class="absolute right-0 mt-2 w-44 bg-[#1f2a50] border border-gray-700 rounded-lg shadow-lg py-2 z-10">
         <button type="button" class="w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-[#252f58]">Report Post</button>
-        <% if (canDelete) { %>
+        <% if (canDeletePost) { %>
           <div class="border-t border-gray-700 my-1"></div>
-          <button type="button" class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#252f58] hover:text-red-300">Delete Post</button>
+          <button type="button" class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-[#252f58] hover:text-red-300" onclick="deletePost('<%= id %>')">Delete Post</button>
         <% } %>
       </div>
     </details>
@@ -45,3 +46,40 @@
     </div>
   </div>
 </div>
+
+<script>
+  function deletePost(postId) {
+    if (confirm('Are you sure you want to delete this post?')) {
+      fetch(`/api/posts/${postId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to delete post');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Remove the post element from the DOM
+          const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+          if (postElement) {
+            postElement.remove();
+          } else {
+            // Fallback: reload the page if we can't find the element
+            window.location.reload();
+          }
+        } else {
+          alert('Failed to delete post: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(error => {
+        console.error('Error deleting post:', error);
+        alert('Failed to delete post. Please try again.');
+      });
+    }
+  }
+</script>

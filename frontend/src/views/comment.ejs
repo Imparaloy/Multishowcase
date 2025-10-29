@@ -21,7 +21,9 @@
 
         <!-- Main Post -->
         <div class="p-4">
-          <%- include('components/post', post) %>
+          <div data-post-id="<%= post.id %>">
+            <%- include('components/post', post) %>
+          </div>
         </div>
 
         <!-- New Comment Box -->
@@ -35,7 +37,9 @@
         <div class="p-4 space-y-4">
           <% if (comments && comments.length) { %>
             <% comments.forEach(comment => { %>
-              <%- include('components/post', comment) %>
+              <div data-post-id="<%= comment.id %>">
+                <%- include('components/post', comment) %>
+              </div>
             <% }) %>
           <% } else { %>
             <p class="text-center text-gray-400 py-6">No comments yet.</p>

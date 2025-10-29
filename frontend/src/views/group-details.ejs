@@ -124,15 +124,76 @@
 							<% if (isMember) { %>
 								<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60">
 									<h3 class="text-lg font-semibold mb-3">สร้างโพสต์ใหม่</h3>
-									<form id="postForm" class="space-y-3">
-										<div>
-											<textarea id="postContent" name="content" placeholder="แชร์ความคิดเห็นของคุณ..." class="w-full min-h-[100px] bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400 text-white placeholder:text-gray-400"></textarea>
-										</div>
-										<div class="flex items-center justify-end gap-2">
-											<button type="submit" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">โพสต์</button>
-										</div>
-									</form>
+									<%- include('components/newpost', { placeholder: "แชร์ความคิดเห็นของคุณ..." }) %>
 								</div>
+								
+								<script>
+									// Override newpost component submission for group context
+									document.addEventListener('DOMContentLoaded', function() {
+										// Wait for the newpost component to initialize
+										setTimeout(() => {
+											const submitBtn = document.getElementById('submitPost');
+											const textarea = document.getElementById('newpost-text');
+											
+											if (submitBtn && textarea) {
+												// Remove all existing event listeners by replacing the button
+												const newSubmitBtn = submitBtn.cloneNode(true);
+												submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
+												
+												// Add loading spinner container
+												const spinnerContainer = document.createElement('div');
+												spinnerContainer.className = 'inline-block ml-2';
+												spinnerContainer.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-r-2 border-white"></div>';
+												
+												// Add new event listener for group context
+												newSubmitBtn.addEventListener('click', async (e) => {
+													e.preventDefault();
+													e.stopPropagation();
+													
+													const content = textarea.value.trim();
+													if (!content) {
+														alert('กรุณาใส่เนื้อหาโพสต์');
+														return;
+													}
+												  
+													try {
+														newSubmitBtn.disabled = true;
+														newSubmitBtn.innerHTML = '<span class="flex items-center"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-r-2 border-white mr-2"></div>กำลังโพสต์...</span>';
+													    
+														const res = await fetch(`/groups/${groupId}/posts`, {
+															method: 'POST',
+															headers: { 'Content-Type': 'application/json' },
+															body: JSON.stringify({ content })
+														});
+														const data = await res.json();
+														if (res.ok) {
+															// Show success feedback
+															newSubmitBtn.innerHTML = '<span class="flex items-center"><i data-feather="check-circle" class="w-4 h-4 mr-2 text-green-400"></i>โพสต์สำเร็จ!</span>';
+															feather.replace();
+															setTimeout(() => location.reload(), 1000);
+														} else {
+															newSubmitBtn.innerHTML = '<span class="flex items-center"><i data-feather="x-circle" class="w-4 h-4 mr-2 text-red-400"></i>โพสต์ล้มเหลว</span>';
+															feather.replace();
+															alert(data.message || 'ไม่สามารถสร้างโพสต์ได้');
+														}
+													} catch (err) {
+														newSubmitBtn.innerHTML = '<span class="flex items-center"><i data-feather="x-circle" class="w-4 h-4 mr-2 text-red-400"></i>เกิดข้อผิดพลาด</span>';
+														feather.replace();
+														alert('เกิดข้อผิดพลาดในการสร้างโพสต์');
+													} finally {
+														if (!res.ok) {
+															setTimeout(() => {
+																newSubmitBtn.disabled = false;
+																newSubmitBtn.innerHTML = 'โพสต์';
+																feather.replace();
+															}, 2000);
+														}
+													}
+												});
+											}
+										}, 100); // Small delay to ensure newpost component is fully loaded
+									});
+								</script>
 							<% } %>
 							
 							<div id="postsList" class="space-y-4">
@@ -140,21 +201,21 @@
 									<div class="text-center py-10 text-gray-300">ยังไม่มีโพสต์ในกลุ่มนี้</div>
 								<% } else { %>
 									<% posts.forEach(post => { %>
-										<div class="bg-[#1f2e5f] rounded-xl p-4 border border-gray-600/60">
-											<div class="flex items-start justify-between gap-3">
-												<div class="flex-1">
-													<div class="flex items-center gap-2 mb-2">
-														<span class="font-semibold text-white"><%= post.author %></span>
-														<span class="text-xs text-gray-400"><%= new Date(post.createdAt).toLocaleString('th-TH') %></span>
-													</div>
-													<p class="text-gray-200"><%= post.content %></p>
-												</div>
-												<% if (isOwner || (post.author === currentUser?.username)) { %>
-													<button class="delete-post-btn text-red-400 hover:text-red-300" data-post-id="<%= post.id %>">
-														<i data-feather="trash-2" class="w-4 h-4"></i>
-													</button>
-												<% } %>
-											</div>
+										<%
+										// Check if current user can delete this post
+										const canDeletePost = (isOwner || (post.author === currentUser?.username));
+										%>
+										<div data-post-id="<%= post.id %>">
+											<%- include('components/post', {
+												id: post.id,
+												name: post.author,
+												username: post.author,
+												content: post.content,
+												likes: post.likes || 0,
+												comments: post.comments || 0,
+												currentUser: typeof currentUser !== 'undefined' ? currentUser : null,
+												canDelete: canDeletePost
+											}) %>
 										</div>
 									<% }) %>
 								<% } %>
@@ -343,36 +404,30 @@
 				});
 			}
 			
-			// Create post
-			const postForm = document.getElementById('postForm');
-			if (postForm) {
-				postForm.addEventListener('submit', async (e) => {
+			// Delete post - Updated for standardized post component
+			document.addEventListener('click', async (e) => {
+				// Check if the clicked element is the delete button within a post dropdown
+				if (e.target.matches('button') && e.target.textContent.includes('Delete Post')) {
 					e.preventDefault();
-					const content = document.getElementById('postContent').value.trim();
-					if (!content) return;
+					e.stopPropagation();
 					
-					try {
-						const res = await fetch(`/groups/${groupId}/posts`, {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify({ content })
-						});
-						const data = await res.json();
-						if (res.ok) {
-							location.reload();
-						} else {
-							alert(data.message || 'ไม่สามารถสร้างโพสต์ได้');
-						}
-					} catch (err) {
-						alert('เกิดข้อผิดพลาดในการสร้างโพสต์');
+					// Find the post element that contains this button
+					const postElement = e.target.closest('.bg-[#182244]');
+					if (!postElement) return;
+					
+					// Get the post ID from the comment/like button onclick attribute
+					const commentBtn = postElement.querySelector('[onclick*="comment"]');
+					if (!commentBtn) return;
+					
+					const onclickAttr = commentBtn.getAttribute('onclick');
+					const postIdMatch = onclickAttr.match(/id=([^&']+)/);
+					const postId = postIdMatch ? postIdMatch[1] : null;
+					
+					if (!postId) {
+						alert('ไม่สามารถระบุ ID ของโพสต์ได้');
+						return;
 					}
-				});
-			}
-			
-			// Delete post
-			document.querySelectorAll('.delete-post-btn').forEach(btn => {
-				btn.addEventListener('click', async () => {
-					const postId = btn.dataset.postId;
+					
 					if (confirm('คุณต้องการลบโพสต์นี้ใช่หรือไม่?')) {
 						try {
 							const res = await fetch(`/groups/${groupId}/posts/${postId}`, {
@@ -380,7 +435,7 @@
 								headers: { 'Content-Type': 'application/json' }
 							});
 							const data = await res.json();
-							if (res.ok) {
+							if (res.ok || data.ok) {
 								location.reload();
 							} else {
 								alert(data.message || 'ไม่สามารถลบโพสต์ได้');
@@ -389,7 +444,7 @@
 							alert('เกิดข้อผิดพลาดในการลบโพสต์');
 						}
 					}
-				});
+				}
 			});
 			
 			// Role dropdown

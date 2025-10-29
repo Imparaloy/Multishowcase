@@ -1,26 +1,12 @@
 import express from 'express';
-import { currentUser, forYouPosts, followingPosts } from '../data/mock.js';
+import { getForYouPosts, getFollowingPosts } from '../controllers/home.controller.js';
 
 const router = express.Router();
 
 // Home (For you)
-router.get('/', (req, res) => {
-  res.render('home', {
-    activeTab: 'for-you',
-    feed: forYouPosts,
-    currentUser,
-    activePage: 'home',
-  });
-});
+router.get('/', getForYouPosts);
 
 // Following
-router.get('/following', (req, res) => {
-  res.render('home', {
-    activeTab: 'following',
-    feed: followingPosts,
-    currentUser,
-    activePage: 'home',
-  });
-});
+router.get('/following', getFollowingPosts);
 
 export default router;

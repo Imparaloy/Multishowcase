@@ -94,7 +94,9 @@
 				<div class="p-4 space-y-4">
 					<% if (typeof feed !== 'undefined' && Array.isArray(feed) && feed.length) { %>
 						<% feed.forEach(function(post){ %>
-							<%- include('components/post', post) %>
+							<div data-post-id="<%= post.id %>">
+								<%- include('components/post', post) %>
+							</div>
 						<% }) %>
 					<% } else { %>
 						<p class="text-center text-gray-400 py-6">No posts yet.</p>
