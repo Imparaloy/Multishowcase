@@ -21,8 +21,6 @@ export async function renderGroupsPage(req, res) {
 
 // สร้างกลุ่มใหม่
 export async function createGroup(req, res) {
-  // MOCK เฉพาะตอน dev/test เท่านั้น
-  if (!req.user) req.user = { user_id: 'uuid-test', username: 'testuser' };
   try {
     const { name, description } = req.body || {};
     if (!name || String(name).trim().length === 0) {
