@@ -125,6 +125,24 @@
 						<div id="message" class="hidden mt-4 p-4 rounded-lg"></div>
 					</div>
 				</section>
+
+				<!-- Delete Account Section -->
+				<section class="px-4 pt-6">
+					<div class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60">
+						<h2 class="text-xl font-bold mb-4">Danger Zone</h2>
+						<p class="text-sm text-gray-400 mb-4">
+							Once you delete your account, there is no going back. Please be certain.
+						</p>
+						<button
+							type="button"
+							id="deleteAccountBtn"
+							class="px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 text-sm font-semibold flex items-center gap-2"
+						>
+							<i data-feather="trash-2" class="w-4 h-4"></i>
+							Delete account
+						</button>
+					</div>
+				</section>
 			</main>
 		</div>
 
@@ -236,6 +254,47 @@
 					messageDiv.classList.add('hidden');
 				}, 5000);
 			}
+
+			// Delete account
+			const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+
+			deleteAccountBtn.addEventListener('click', async function() {
+				if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+					return;
+				}
+				
+				// Show loading state
+				const originalText = this.innerHTML;
+				this.innerHTML = '<i data-feather="loader" class="w-4 h-4 animate-spin"></i> Deleting...';
+				this.disabled = true;
+				feather.replace();
+				
+				try {
+					const response = await fetch('/profile/delete', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+						},
+					});
+
+					const result = await response.json();
+
+					if (result.ok) {
+						alert('Account deleted successfully');
+						window.location.href = '/';
+					} else {
+						alert(result.message || 'Error deleting account');
+					}
+				} catch (error) {
+					console.error('Error:', error);
+					alert('Network error. Please try again.');
+				} finally {
+					// Restore button state
+					this.innerHTML = originalText;
+					this.disabled = false;
+					feather.replace();
+				}
+			});
 		</script>
 	</body>
 </html>

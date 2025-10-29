@@ -105,6 +105,18 @@ export async function updateProfile(req, res) {
 
     await cognitoClient.send(command);
 
+    // อัปเดต display_name และ bio ของ user ใน PostgreSQL
+    await pool.query(
+      'UPDATE users SET display_name = $1, bio = $2 WHERE username = $3',
+      [displayName, bio, username]
+    );
+
+    // ลบ user ตาม username
+    await pool.query(
+      'DELETE FROM users WHERE username = $1',
+      [username]
+    );
+
     return res.json({
       ok: true,
       message: "Profile updated successfully",

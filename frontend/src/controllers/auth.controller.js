@@ -115,7 +115,7 @@ export async function login(req, res) {
 
     const baseCookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false,
       sameSite: "lax",
       maxAge: ExpiresIn * 1000,
       path: "/",
@@ -156,6 +156,8 @@ export function logout(req, res) {
 }
 
 // OAuth callback (Hosted UI)
+// คือ ฟังก์ชันที่รับ callback จาก Cognito Hosted UI หลังจากผู้ใช้ล็อกอินสำเร็จ
+// ฟังก์ชันนี้จะแลกเปลี่ยน authorization code เป็น tokens และตั้งค่า cookies
 export async function oauthCallback(req, res) {
   const code = req.query.code;
   try {
@@ -232,6 +234,8 @@ export async function fetchProtectedRoute(req, res) {
   }
 }
 
+// Protected route เอาไว้ทดสอบการเข้าถึงด้วย Token
+// ใช้สำหรับทดสอบว่า Token ที่ส่งมาถูกต้องหรือไม่
 export function protectedRoute(req, res) {
   const token = req.cookies.access_token || req.headers.authorization?.split(" ")[1];
 

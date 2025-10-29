@@ -1,3 +1,4 @@
+import pool from '../config/dbconn.js';
 import {
   getAllGroups,
   addGroup,
@@ -13,12 +14,13 @@ import {
   addGroupPost,
   deleteGroupPost
 } from '../services/groups.service.js';
-import { currentUser as mockCurrentUser, exploreTags } from '../data/mock.js';
+import { exploreTags } from '../data/mock.js';
 
 export async function renderGroupsPage(req, res) {
   try {
     const groups = await getAllGroups();
-    return res.render('groups', { title: 'Groups', groups, currentUser: mockCurrentUser, activePage: 'groups', exploreTags });
+    const currentUser = req.user;
+    return res.render('groups', { title: 'Groups', groups, currentUser, activePage: 'groups', exploreTags });
   } catch (e) {
     console.error('Failed to load groups:', e);
     return res.status(500).send('Failed to load groups');
@@ -38,7 +40,7 @@ export async function createGroup(req, res) {
     if (!name || String(name).trim().length === 0) {
       return res.status(400).json({ ok: false, message: 'กรุณากรอกชื่อกลุ่ม' });
     }
-  const createdBy = req.user?.username || mockCurrentUser.username || null;
+    const createdBy = req.user?.username || null;
   const group = await addGroup({ name, description, createdBy, tags: safeTags });
 
     // If expecting JSON (AJAX), return JSON; else redirect
@@ -62,7 +64,7 @@ export async function renderGroupDetailsPage(req, res) {
       return res.status(404).send('Group not found');
     }
     
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     // Check if current user is owner
     const isOwner = group.createdBy === currentUser.username;
@@ -104,7 +106,7 @@ export async function renderGroupDetailsPage(req, res) {
 export async function requestJoinGroup(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const result = await joinGroup(id, currentUser.username, currentUser.displayName);
     
@@ -122,7 +124,7 @@ export async function requestJoinGroup(req, res) {
 export async function leaveGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const result = await leaveGroup(id, currentUser.username);
     
@@ -140,7 +142,7 @@ export async function leaveGroupHandler(req, res) {
 export async function deleteGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const group = await findGroupById(id);
     if (!group) {
@@ -167,7 +169,7 @@ export async function deleteGroupHandler(req, res) {
 export async function approveJoinRequestHandler(req, res) {
   try {
     const { id, username } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const group = await findGroupById(id);
     if (!group) {
@@ -194,7 +196,7 @@ export async function approveJoinRequestHandler(req, res) {
 export async function rejectJoinRequestHandler(req, res) {
   try {
     const { id, username } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const group = await findGroupById(id);
     if (!group) {
@@ -222,7 +224,7 @@ export async function changeMemberRoleHandler(req, res) {
   try {
     const { id, username } = req.params;
     const { role } = req.body;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const group = await findGroupById(id);
     if (!group) {
@@ -249,7 +251,7 @@ export async function changeMemberRoleHandler(req, res) {
 export async function removeMemberHandler(req, res) {
   try {
     const { id, username } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const group = await findGroupById(id);
     if (!group) {
@@ -277,21 +279,21 @@ export async function createGroupPost(req, res) {
   try {
     const { id } = req.params;
     const { content } = req.body;
-    const currentUser = req.user || mockCurrentUser;
-    
+    const currentUser = req.user;
+
     const group = await findGroupById(id);
     if (!group) {
       return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
     }
-    
+
     // Check if user is a member
     const isMember = group.members && group.members.some(m => m.username === currentUser.username);
     if (!isMember) {
       return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์โพสต์ในกลุ่มนี้' });
     }
-    
+
     const post = await addGroupPost(id, currentUser.username, content);
-    
+
     return res.json({ ok: true, post });
   } catch (e) {
     console.error('Failed to create post:', e);
@@ -302,7 +304,7 @@ export async function createGroupPost(req, res) {
 export async function deleteGroupPostHandler(req, res) {
   try {
     const { id, postId } = req.params;
-    const currentUser = req.user || mockCurrentUser;
+    const currentUser = req.user;
     
     const group = await findGroupById(id);
     if (!group) {
@@ -335,3 +337,50 @@ export async function deleteGroupPostHandler(req, res) {
     return res.status(500).json({ ok: false, message: 'ไม่สามารถลบโพสต์ได้' });
   }
 }
+
+// ดึงกลุ่มทั้งหมด
+export async function getAllGroups() {
+  const result = await pool.query('SELECT * FROM groups');
+  return result.rows;
+}
+
+// เพิ่มกลุ่มใหม่
+export async function addGroup({ name, description, createdBy, tags }) {
+  const result = await pool.query(
+    'INSERT INTO groups (name, description, created_by, tags) VALUES ($1, $2, $3, $4) RETURNING *',
+    [name, description, createdBy, tags]
+  );
+  return result.rows[0];
+}
+
+// เพิ่มโพสต์ใหม่ในกลุ่ม (service)
+export async function addGroupPost(groupId, username, content) {
+  const result = await pool.query(
+    'INSERT INTO group_posts (group_id, author, content) VALUES ($1, $2, $3) RETURNING *',
+    [groupId, username, content]
+  );
+  return result.rows[0];
+}
+
+
+// ค้นหากลุ่มตาม id
+export async function findGroupById(id) {
+  const result = await pool.query('SELECT * FROM groups WHERE id = $1', [id]);
+  return result.rows[0];
+}
+
+// อัปเดตข้อมูลกลุ่ม
+export async function updateGroup(id, { name, description }) {
+  const result = await pool.query(
+    'UPDATE groups SET name = $1, description = $2 WHERE id = $3 RETURNING *',
+    [name, description, id]
+  );
+  return result.rows[0];
+}
+
+// ลบกลุ่ม
+export async function deleteGroup(id) {
+  const result = await pool.query('DELETE FROM groups WHERE id = $1 RETURNING *', [id]);
+  return result.rowCount > 0;
+}
+
