@@ -63,8 +63,8 @@ export const createPost = async (req, res) => {
     const category = tags.length > 0 ? categoryMap[tags[0]] : '2D art';
 
     const postResult = await client.query(
-      'INSERT INTO posts (author_id, body, category) VALUES ($1, $2, $3) RETURNING post_id',
-      [authorId, content, category]
+      'INSERT INTO posts (author_id, body, category, status) VALUES ($1, $2, $3, $4) RETURNING post_id',
+      [authorId, content, category, 'published']
     );
     
     const postId = postResult.rows[0].post_id;

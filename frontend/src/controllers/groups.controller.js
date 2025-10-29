@@ -1,6 +1,8 @@
 import pool from '../config/dbconn.js';
 import { exploreTags } from '../data/mock.js';
 
+req.user = { user_id: 'uuid-test', username: 'testuser' };
+
 // แสดงหน้า groups ทั้งหมด
 export async function renderGroupsPage(req, res) {
   try {

@@ -77,11 +77,16 @@ CREATE TABLE IF NOT EXISTS likes (
 
 -- 8) post_media
 CREATE TABLE IF NOT EXISTS post_media (
-  post_media_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id       UUID REFERENCES posts(post_id) ON DELETE CASCADE,
-  media_type    media_type,
-  order_index   INT NOT NULL DEFAULT 0,
-  created_at    TIMESTAMPTZ DEFAULT now()
+  post_media_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  post_id          UUID REFERENCES posts(post_id) ON DELETE CASCADE,
+  media_type       media_type,
+  order_index      INT NOT NULL DEFAULT 0,
+  s3_key           TEXT,
+  s3_url           TEXT,
+  original_filename TEXT,
+  file_size        BIGINT,
+  content_type     TEXT,
+  created_at       TIMESTAMPTZ DEFAULT now()
 );
 
 -- 9) reports
