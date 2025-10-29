@@ -6,6 +6,20 @@ import cookieParser from "cookie-parser";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+import { fromEnv } from '@aws-sdk/credential-providers';
+
+(async () => {
+  try {
+    const creds = await fromEnv()(); // 👈 เรียก provider แล้ว await
+    console.log('Loaded creds:', {
+      accessKeyId: creds.accessKeyId,
+      hasSessionToken: !!creds.sessionToken,
+    });
+  } catch (err) {
+    console.error('Load creds failed:', err);
+  }
+})();
+
 // ✅ สร้าง __filename และ __dirname ด้วยตัวเอง
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
