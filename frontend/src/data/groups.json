@@ -5,6 +5,7 @@
     "description": "รวมผลงาน 3D, แชร์ workflow และคอมเมนต์ให้กัน",
     "createdAt": "2025-10-24T08:00:00.000Z",
     "createdBy": "Polor_inwza",
+    "tags": ["model", "animation-3d"],
     "members": [
       { "username": "Polor_inwza", "displayName": "Polor", "role": "owner" },
       { "username": "tarnux", "displayName": "Tarn", "role": "member" },
@@ -17,6 +18,7 @@
     "description": "พูดคุยการพัฒนาเกม prototype ใหม่ ๆ",
     "createdAt": "2025-10-23T10:30:00.000Z",
     "createdBy": "poomcode",
+    "tags": ["game-dev"],
     "members": [
       { "username": "poomcode", "displayName": "Poom", "role": "owner" },
       { "username": "Polor_inwza", "displayName": "Polor", "role": "member" }
@@ -28,6 +30,7 @@
     "description": "รีวิวและออกแบบ UI/UX สำหรับงาน capstone และ side projects",
     "createdAt": "2025-10-22T14:15:00.000Z",
     "createdBy": "tarnux",
+    "tags": ["ux-ui"],
     "members": []
   },
   {
@@ -36,6 +39,7 @@
     "description": "แบ่งปันเทคนิคเว็บสมัยใหม่ Next.js, Tailwind, และ DevOps",
     "createdAt": "2025-10-21T09:45:00.000Z",
     "createdBy": "mixdev",
+    "tags": ["website"],
     "members": []
   },
   {
@@ -44,6 +48,7 @@
     "description": "แลกเปลี่ยนงานอนิเมชัน 2D/3D และเครื่องมืออย่าง Blender, AE",
     "createdAt": "2025-10-20T16:20:00.000Z",
     "createdBy": "yodmodel",
+    "tags": ["animation-3d"],
     "members": []
   }
 ]

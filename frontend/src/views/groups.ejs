@@ -82,8 +82,13 @@
 														</div>
 														<% if (Array.isArray(g.tags) && g.tags.length) { %>
 															<div class="mt-2 flex flex-wrap gap-2">
-																<% g.tags.forEach(function(slug){ %>
-																	<span class="px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40"><%= slug %></span>
+																<% g.tags.forEach(function(slug){
+																	const tagLabel = (typeof exploreTags !== 'undefined' && Array.isArray(exploreTags)) ?
+																		(exploreTags.find(t => t.slug === slug)?.label || slug) : slug;
+																%>
+																	<span class="px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40 hover:bg-purple-500/30 transition-colors cursor-default" title="<%= tagLabel %>">
+																		<%= tagLabel %>
+																	</span>
 																<% }) %>
 															</div>
 														<% } %>
@@ -243,8 +248,9 @@
 									chips.className = 'mt-2 flex flex-wrap gap-2';
 									payload.tags.forEach(function(slug){
 										const chip = document.createElement('span');
-										chip.className = 'px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40';
+										chip.className = 'px-2 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40 hover:bg-purple-500/30 transition-colors cursor-default';
 										chip.textContent = slug;
+										chip.title = slug;
 										chips.appendChild(chip);
 									});
 									card.appendChild(chips);

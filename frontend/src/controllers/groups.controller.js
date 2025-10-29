@@ -76,6 +76,14 @@ export async function renderGroupDetailsPage(req, res) {
     // Get posts
     const posts = group.posts || [];
     
+    // Create a tag lookup map for easy access to tag labels
+    const tagMap = {};
+    if (exploreTags && Array.isArray(exploreTags)) {
+      exploreTags.forEach(tag => {
+        tagMap[tag.slug] = tag.label;
+      });
+    }
+
     return res.render('group-details', {
       title: group.name,
       group,
@@ -84,7 +92,8 @@ export async function renderGroupDetailsPage(req, res) {
       isMember,
       pendingRequests,
       posts,
-      exploreTags
+      exploreTags,
+      tagMap
     });
   } catch (e) {
     console.error('Failed to load group details:', e);

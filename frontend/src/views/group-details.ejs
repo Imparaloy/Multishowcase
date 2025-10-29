@@ -17,6 +17,36 @@
 				<div class="px-4 pt-6 space-y-6">
 					<!-- Group Header -->
 					<section class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60 space-y-4">
+						<!-- Tags Section - Moved to top -->
+						<% if (Array.isArray(group.tags) && group.tags.length) { %>
+							<div class="space-y-2">
+								<div class="flex items-center gap-2 text-sm text-gray-300">
+									<i data-feather="tag" class="w-4 h-4"></i>
+									<span class="font-medium">หมวดหมู่:</span>
+								</div>
+								<div class="flex flex-wrap gap-2">
+									<% group.tags.forEach(function(tag){ %>
+										<span class="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40 hover:bg-purple-500/30 transition-colors cursor-default" title="<%= tagMap[tag] || tag %>">
+											<%= tagMap[tag] || tag %>
+										</span>
+									<% }) %>
+								</div>
+								<div class="text-xs text-gray-400 mt-1">
+									คลิกที่แท็กเพื่อดูโพสต์ที่เกี่ยวข้อง
+								</div>
+							</div>
+						<% } else { %>
+							<div class="space-y-2">
+								<div class="flex items-center gap-2 text-sm text-gray-300">
+									<i data-feather="tag" class="w-4 h-4"></i>
+									<span class="font-medium">หมวดหมู่:</span>
+								</div>
+								<div class="text-xs text-gray-400">
+									ยังไม่มีการกำหนดหมวดหมู่สำหรับกลุ่มนี้
+								</div>
+							</div>
+						<% } %>
+						
 						<div class="flex items-center justify-between gap-3 flex-wrap">
 							<div>
 								<h2 class="text-2xl font-bold text-white"><%= group.name %></h2>
@@ -59,13 +89,6 @@
 								<% } %>
 							</div>
 						</div>
-						<% if (Array.isArray(group.tags) && group.tags.length) { %>
-							<div class="flex flex-wrap gap-2">
-								<% group.tags.forEach(function(tag){ %>
-									<span class="px-3 py-1 rounded-full text-xs bg-purple-500/20 text-purple-200 border border-purple-400/40"><%= tag %></span>
-								<% }) %>
-							</div>
-						<% } %>
 					</section>
 
 					<!-- Tabs Navigation -->
