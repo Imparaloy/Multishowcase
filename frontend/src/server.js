@@ -5,7 +5,10 @@ import cookieParser from "cookie-parser";
 
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { fromEnv } from "@aws-sdk/credential-providers";
 
+const credentials = fromEnv();
+console.log("AWS Credentials:", credentials);
 // ✅ สร้าง __filename และ __dirname ด้วยตัวเอง
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
