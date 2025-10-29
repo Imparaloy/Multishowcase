@@ -1,18 +1,18 @@
 import pool from '../config/dbconn.js';
-import {
-  addGroup,
-  findGroupById,
-  updateGroup,
-  deleteGroup,
-  joinGroup,
-  leaveGroup,
-  approveJoinRequest,
-  rejectJoinRequest,
-  changeMemberRole,
-  removeMember,
-  addGroupPost,
-  deleteGroupPost
-} from '../services/groups.service.js';
+// import {
+//   addGroup,
+//   findGroupById,
+//   updateGroup,
+//   deleteGroup,
+//   joinGroup,
+//   leaveGroup,
+//   approveJoinRequest,
+//   rejectJoinRequest,
+//   changeMemberRole,
+//   removeMember,
+//   addGroupPost,
+//   deleteGroupPost
+// } from '../services/groups.service.js';
 import { exploreTags } from '../data/mock.js';
 
 export async function renderGroupsPage(req, res) {
