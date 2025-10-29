@@ -15,6 +15,7 @@
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.907.0",
     "@aws-sdk/client-s3": "^3.907.0",
+    "@aws-sdk/client-sts": "^3.919.0",
     "@aws-sdk/credential-providers": "^3.907.0",
     "@aws-sdk/s3-request-presigner": "^3.907.0",
     "aws-jwt-verify": "^5.1.0",

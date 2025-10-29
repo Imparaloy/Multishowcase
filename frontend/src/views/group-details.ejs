@@ -18,6 +18,17 @@
 					<!-- Group Header -->
 					<section class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60 space-y-4">
 						<!-- Tags Section - Moved to top -->
+						<%
+						// Create tagMap if not provided
+						if (typeof tagMap === 'undefined') {
+							var tagMap = {};
+							if (typeof exploreTags !== 'undefined' && Array.isArray(exploreTags)) {
+								exploreTags.forEach(function(tag) {
+									tagMap[tag.slug] = tag.label;
+								});
+							}
+						}
+						%>
 						<% if (Array.isArray(group.tags) && group.tags.length) { %>
 							<div class="space-y-2">
 								<div class="flex items-center gap-2 text-sm text-gray-300">
