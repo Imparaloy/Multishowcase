@@ -49,7 +49,10 @@ export async function signup(req, res) {
       UserAttributes: [{ Name: "email", Value: email }],
       SecretHash: secretHash(username),
     });
-    await cognitoClient.send(signUp);
+    const cognitoResponse = await cognitoClient.send(signUp);
+
+    // ดึง userSub จาก Cognito Response
+    const cognitoSub = cognitoResponse.UserSub;
 
     // 3) ยืนยันบัญชีใน Cognito
     await cognitoClient.send(
@@ -61,11 +64,12 @@ export async function signup(req, res) {
 
     // 4) บันทึกข้อมูลลงใน PostgreSQL
     const query = `
-      INSERT INTO users (username, email, display_name, role, status)
-      VALUES ($1, $2, $3, $4, $5)
+      INSERT INTO users (cognito_sub, username, email, display_name, role, status)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING user_id, username, email, display_name, role, status, created_at;
     `;
     const values = [
+      cognitoSub, // เพิ่ม cognitoSub ที่ได้จาก Cognito
       username,
       email,
       display_name || username, // ถ้าไม่มี display_name ให้ใช้ username
