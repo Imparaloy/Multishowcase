@@ -31,8 +31,7 @@ async function isEmailTaken(email) {
 
 
 export async function signup(req, res) {
-  const { username, password, email, name } = req.body;
-
+  const { username, password, email, name: display_name } = req.body;
   try {
     // 1) กันอีเมลซ้ำ
     if (await isEmailTaken(email)) {
