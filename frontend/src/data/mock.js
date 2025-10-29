@@ -82,6 +82,7 @@ export const forYouPosts = commentMock;
 export const commentsByPost = {
   1: [
     {
+      id: 101,
       name: "Name",
       username: "Username",
       content:
@@ -90,6 +91,7 @@ export const commentsByPost = {
       likes: "30k",
     },
     {
+      id: 102,
       name: "Name",
       username: "Username",
       content:
@@ -100,6 +102,7 @@ export const commentsByPost = {
   ],
   2: [
     {
+      id: 201,
       name: "Another",
       username: "AnotherUser",
       content: "This is a comment for post 2 only.",
@@ -112,6 +115,7 @@ export const commentsByPost = {
 // Add comments for post id 3 used by followingPosts
 commentsByPost[3] = [
   {
+    id: 301,
     name: "Friend",
     username: "frienduser",
     content: "คอมเมนต์สำหรับโพสต์ following เท่านั้น",

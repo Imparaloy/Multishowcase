@@ -22,7 +22,15 @@
         <!-- Main Post -->
         <div class="p-4">
           <div data-post-id="<%= post.id %>">
-            <%- include('components/post', post) %>
+            <%- include('components/post', {
+              id: post.id,
+              name: post.name,
+              username: post.username,
+              content: post.content,
+              comments: post.comments,
+              likes: post.likes,
+              currentUser: typeof currentUser !== 'undefined' ? currentUser : null
+            }) %>
           </div>
         </div>
 
@@ -38,7 +46,15 @@
           <% if (comments && comments.length) { %>
             <% comments.forEach(comment => { %>
               <div data-post-id="<%= comment.id %>">
-                <%- include('components/post', comment) %>
+                <%- include('components/post', {
+                  id: comment.id,
+                  name: comment.name,
+                  username: comment.username,
+                  content: comment.content,
+                  comments: comment.comments,
+                  likes: comment.likes,
+                  currentUser: typeof currentUser !== 'undefined' ? currentUser : null
+                }) %>
               </div>
             <% }) %>
           <% } else { %>
