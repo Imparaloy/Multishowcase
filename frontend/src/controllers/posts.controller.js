@@ -18,8 +18,11 @@ export const createPost = async (req, res) => {
     const files = req.files?.images || [];
     const tags = req.body.tags ? req.body.tags.split(',') : [];
     
-    // For demo, using fixed author_id (should come from auth)
-    const authorId = 'e99f09a7-dd88-49d5-b1c8-1daf80c2d7b2';
+    // ดึง authorId จาก session/auth middleware
+    const authorId = req.user?.user_id;
+    if (!authorId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: No user session' });
+    }
 
     // Map tag slug to actual category name
     const categoryMap = {
