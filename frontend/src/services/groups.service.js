@@ -1,6 +1,5 @@
-import { promises as fs } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+
+import pool from '../config/dbconn.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -38,9 +37,9 @@ function genId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function getAllGroups() {
-  return await readAll();
-}
+  const result = await pool.query('SELECT * FROM groups');
+  return result.rows;
+
 
 export async function addGroup({ name, description, createdBy, tags }) {
   const groups = await readAll();
