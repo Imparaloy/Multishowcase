@@ -1,23 +1,16 @@
 import pool from '../config/dbconn.js';
-// import {
-//   addGroup,
-//   findGroupById,
-//   updateGroup,
-//   deleteGroup,
-//   joinGroup,
-//   leaveGroup,
-//   approveJoinRequest,
-//   rejectJoinRequest,
-//   changeMemberRole,
-//   removeMember,
-//   addGroupPost,
-//   deleteGroupPost
-// } from '../services/groups.service.js';
 import { exploreTags } from '../data/mock.js';
 
+// แสดงหน้า groups ทั้งหมด
 export async function renderGroupsPage(req, res) {
   try {
-    const groups = await getAllGroups();
+    const groupsRes = await pool.query(`
+      SELECT g.*, u.display_name AS owner_name
+      FROM groups g
+      JOIN users u ON g.owner_id = u.user_id
+      ORDER BY g.created_at DESC
+    `);
+    const groups = groupsRes.rows;
     const currentUser = req.user;
     return res.render('groups', { title: 'Groups', groups, currentUser, activePage: 'groups', exploreTags });
   } catch (e) {
@@ -26,23 +19,22 @@ export async function renderGroupsPage(req, res) {
   }
 }
 
+// สร้างกลุ่มใหม่
 export async function createGroup(req, res) {
   try {
     const { name, description } = req.body || {};
-    // tags can be array or single string
-    let tags = req.body?.tags ?? [];
-    if (typeof tags === 'string') tags = [tags];
-    if (!Array.isArray(tags)) tags = [];
-    // keep only allowed tags
-    const allowed = new Set((exploreTags || []).map(t => t.slug));
-    const safeTags = tags.map(t => String(t).toLowerCase()).filter(t => allowed.has(t));
     if (!name || String(name).trim().length === 0) {
       return res.status(400).json({ ok: false, message: 'กรุณากรอกชื่อกลุ่ม' });
     }
-    const createdBy = req.user?.username || null;
-  const group = await addGroup({ name, description, createdBy, tags: safeTags });
-
-    // If expecting JSON (AJAX), return JSON; else redirect
+    const owner_id = req.user?.user_id;
+    if (!owner_id) {
+      return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+    const groupRes = await pool.query(
+      'INSERT INTO groups (name, description, owner_id) VALUES ($1, $2, $3) RETURNING *',
+      [name, description, owner_id]
+    );
+    const group = groupRes.rows[0];
     const accept = req.headers['accept'] || '';
     if (accept.includes('application/json') || req.xhr) {
       return res.status(201).json({ ok: true, group });
@@ -54,37 +46,38 @@ export async function createGroup(req, res) {
   }
 }
 
+// แสดงรายละเอียดกลุ่ม
 export async function renderGroupDetailsPage(req, res) {
   try {
     const { id } = req.params;
-    const group = await findGroupById(id);
-    
+    const groupRes = await pool.query(
+      `SELECT g.*, u.display_name AS owner_name FROM groups g JOIN users u ON g.owner_id = u.user_id WHERE g.group_id = $1`,
+      [id]
+    );
+    const group = groupRes.rows[0];
     if (!group) {
-      return res.status(404).send('Group not found');
+      return res.status(404).send('ไม่พบกลุ่ม');
     }
-    
     const currentUser = req.user;
-    
-    // Check if current user is owner
-    const isOwner = group.createdBy === currentUser.username;
-    
-    // Check if current user is a member
-    const isMember = group.members && group.members.some(m => m.username === currentUser.username);
-    
-    // Get pending requests (only for owners)
-    const pendingRequests = isOwner ? (group.pendingRequests || []) : [];
-    
-    // Get posts
-    const posts = group.posts || [];
-    
-    // Create a tag lookup map for easy access to tag labels
+    const isOwner = group.owner_id === currentUser.user_id;
+    const membersRes = await pool.query(
+      `SELECT gm.*, u.username, u.display_name FROM group_members gm JOIN users u ON gm.user_id = u.user_id WHERE gm.group_id = $1`,
+      [id]
+    );
+    const members = membersRes.rows;
+    const isMember = members.some(m => m.user_id === currentUser.user_id);
+    const postsRes = await pool.query(
+      `SELECT p.*, u.username, u.display_name FROM posts p JOIN users u ON p.author_id = u.user_id WHERE p.group_id = $1 ORDER BY p.created_at DESC`,
+      [id]
+    );
+    const posts = postsRes.rows;
+    const pendingRequests = [];
     const tagMap = {};
     if (exploreTags && Array.isArray(exploreTags)) {
       exploreTags.forEach(tag => {
         tagMap[tag.slug] = tag.label;
       });
     }
-
     return res.render('group-details', {
       title: group.name,
       group,
@@ -93,6 +86,7 @@ export async function renderGroupDetailsPage(req, res) {
       isMember,
       pendingRequests,
       posts,
+      members,
       exploreTags,
       tagMap
     });
@@ -102,35 +96,30 @@ export async function renderGroupDetailsPage(req, res) {
   }
 }
 
-export async function requestJoinGroup(req, res) {
+// เข้าร่วมกลุ่ม
+export async function joinGroupHandler(req, res) {
   try {
-    const { id } = req.params;
-    const currentUser = req.user;
-    
-    const result = await joinGroup(id, currentUser.username, currentUser.displayName);
-    
-    if (result && result.error) {
-      return res.status(400).json({ ok: false, message: result.error });
-    }
-    
-    return res.json({ ok: true, message: 'คำขอเข้าร่วมกลุ่มได้ถูกส่งแล้ว' });
+    const { id } = req.params; // group_id
+    const user_id = req.user?.user_id;
+    if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
+    if (check.rowCount > 0) return res.status(400).json({ ok: false, message: 'คุณเป็นสมาชิกอยู่แล้ว' });
+    await pool.query('INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)', [id, user_id]);
+    return res.json({ ok: true, message: 'เข้าร่วมกลุ่มสำเร็จ' });
   } catch (e) {
     console.error('Failed to join group:', e);
-    return res.status(500).json({ ok: false, message: 'ไม่สามารถขอเข้าร่วมกลุ่มได้' });
+    return res.status(500).json({ ok: false, message: 'ไม่สามารถเข้าร่วมกลุ่มได้' });
   }
 }
 
+// ออกจากกลุ่ม
 export async function leaveGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = req.user;
-    
-    const result = await leaveGroup(id, currentUser.username);
-    
-    if (!result) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
+    const user_id = req.user?.user_id;
+    if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    const result = await pool.query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
+    if (result.rowCount === 0) return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่มหรือคุณไม่ได้เป็นสมาชิก' });
     return res.json({ ok: true, message: 'ออกจากกลุ่มเรียบร้อย' });
   } catch (e) {
     console.error('Failed to leave group:', e);
@@ -138,26 +127,16 @@ export async function leaveGroupHandler(req, res) {
   }
 }
 
+// ลบกลุ่ม
 export async function deleteGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = req.user;
-    
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    if (group.createdBy !== currentUser.username) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบกลุ่มนี้' });
-    }
-    
-    const success = await deleteGroup(id);
-    
-    if (!success) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
+    const user_id = req.user?.user_id;
+    const groupRes = await pool.query('SELECT * FROM groups WHERE group_id = $1', [id]);
+    const group = groupRes.rows[0];
+    if (!group) return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+    if (group.owner_id !== user_id) return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบกลุ่มนี้' });
+    await pool.query('DELETE FROM groups WHERE group_id = $1', [id]);
     return res.json({ ok: true, message: 'ลบกลุ่มเรียบร้อย' });
   } catch (e) {
     console.error('Failed to delete group:', e);
@@ -165,221 +144,23 @@ export async function deleteGroupHandler(req, res) {
   }
 }
 
-export async function approveJoinRequestHandler(req, res) {
-  try {
-    const { id, username } = req.params;
-    const currentUser = req.user;
-    
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    if (group.createdBy !== currentUser.username) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์อนุมัติคำขอ' });
-    }
-    
-    const result = await approveJoinRequest(id, username);
-    
-    if (result && result.error) {
-      return res.status(400).json({ ok: false, message: result.error });
-    }
-    
-    return res.json({ ok: true, message: 'อนุมัติคำขอเรียบร้อย' });
-  } catch (e) {
-    console.error('Failed to approve request:', e);
-    return res.status(500).json({ ok: false, message: 'ไม่สามารถอนุมัติคำขอได้' });
-  }
-}
-
-export async function rejectJoinRequestHandler(req, res) {
-  try {
-    const { id, username } = req.params;
-    const currentUser = req.user;
-    
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    if (group.createdBy !== currentUser.username) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ปฏิเสธคำขอ' });
-    }
-    
-    const result = await rejectJoinRequest(id, username);
-    
-    if (!result) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    return res.json({ ok: true, message: 'ปฏิเสธคำขอเรียบร้อย' });
-  } catch (e) {
-    console.error('Failed to reject request:', e);
-    return res.status(500).json({ ok: false, message: 'ไม่สามารถปฏิเสธคำขอได้' });
-  }
-}
-
-export async function changeMemberRoleHandler(req, res) {
-  try {
-    const { id, username } = req.params;
-    const { role } = req.body;
-    const currentUser = req.user;
-    
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    if (group.createdBy !== currentUser.username) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์เปลี่ยนบทบาทสมาชิก' });
-    }
-    
-    const result = await changeMemberRole(id, username, role);
-    
-    if (result && result.error) {
-      return res.status(400).json({ ok: false, message: result.error });
-    }
-    
-    return res.json({ ok: true, message: 'เปลี่ยนบทบาทสมาชิกเรียบร้อย' });
-  } catch (e) {
-    console.error('Failed to change member role:', e);
-    return res.status(500).json({ ok: false, message: 'ไม่สามารถเปลี่ยนบทบาทสมาชิกได้' });
-  }
-}
-
-export async function removeMemberHandler(req, res) {
-  try {
-    const { id, username } = req.params;
-    const currentUser = req.user;
-    
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    if (group.createdBy !== currentUser.username) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบสมาชิก' });
-    }
-    
-    const result = await removeMember(id, username);
-    
-    if (result && result.error) {
-      return res.status(400).json({ ok: false, message: result.error });
-    }
-    
-    return res.json({ ok: true, message: 'ลบสมาชิกเรียบร้อย' });
-  } catch (e) {
-    console.error('Failed to remove member:', e);
-    return res.status(500).json({ ok: false, message: 'ไม่สามารถลบสมาชิกได้' });
-  }
-}
-
+// สร้างโพสต์ในกลุ่ม
 export async function createGroupPost(req, res) {
   try {
-    const { id } = req.params;
-    const { content } = req.body;
-    const currentUser = req.user;
-
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-
-    // Check if user is a member
-    const isMember = group.members && group.members.some(m => m.username === currentUser.username);
-    if (!isMember) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์โพสต์ในกลุ่มนี้' });
-    }
-
-    const post = await addGroupPost(id, currentUser.username, content);
-
-    return res.json({ ok: true, post });
+    const { id } = req.params; // group_id
+    const { title, body, category } = req.body;
+    const author_id = req.user?.user_id;
+    if (!author_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, author_id]);
+    if (check.rowCount === 0) return res.status(403).json({ ok: false, message: 'คุณไม่ได้เป็นสมาชิกกลุ่มนี้' });
+    const postRes = await pool.query(
+      'INSERT INTO posts (author_id, title, body, category, group_id, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [author_id, title, body, category, id, 'published']
+    );
+    return res.json({ ok: true, post: postRes.rows[0] });
   } catch (e) {
     console.error('Failed to create post:', e);
     return res.status(500).json({ ok: false, message: 'ไม่สามารถสร้างโพสต์ได้' });
   }
-}
-
-export async function deleteGroupPostHandler(req, res) {
-  try {
-    const { id, postId } = req.params;
-    const currentUser = req.user;
-    
-    const group = await findGroupById(id);
-    if (!group) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    }
-    
-    // Find the post
-    const post = group.posts && group.posts.find(p => p.id === postId);
-    if (!post) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบโพสต์' });
-    }
-    
-    // Check if user is owner or post author
-    const isOwner = group.createdBy === currentUser.username;
-    const isAuthor = post.author === currentUser.username;
-    
-    if (!isOwner && !isAuthor) {
-      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบโพสต์นี้' });
-    }
-    
-    const result = await deleteGroupPost(id, postId);
-    
-    if (result && result.error) {
-      return res.status(400).json({ ok: false, message: result.error });
-    }
-    
-    return res.json({ ok: true, message: 'ลบโพสต์เรียบร้อย' });
-  } catch (e) {
-    console.error('Failed to delete post:', e);
-    return res.status(500).json({ ok: false, message: 'ไม่สามารถลบโพสต์ได้' });
-  }
-}
-
-// ดึงกลุ่มทั้งหมด
-export async function getAllGroups() {
-  const result = await pool.query('SELECT * FROM groups');
-  return result.rows;
-}
-
-// เพิ่มกลุ่มใหม่
-export async function addGroup({ name, description, createdBy, tags }) {
-  const result = await pool.query(
-    'INSERT INTO groups (name, description, created_by, tags) VALUES ($1, $2, $3, $4) RETURNING *',
-    [name, description, createdBy, tags]
-  );
-  return result.rows[0];
-}
-
-// เพิ่มโพสต์ใหม่ในกลุ่ม (service)
-export async function addGroupPost(groupId, username, content) {
-  const result = await pool.query(
-    'INSERT INTO group_posts (group_id, author, content) VALUES ($1, $2, $3) RETURNING *',
-    [groupId, username, content]
-  );
-  return result.rows[0];
-}
-
-
-// ค้นหากลุ่มตาม id
-export async function findGroupById(id) {
-  const result = await pool.query('SELECT * FROM groups WHERE id = $1', [id]);
-  return result.rows[0];
-}
-
-// อัปเดตข้อมูลกลุ่ม
-export async function updateGroup(id, { name, description }) {
-  const result = await pool.query(
-    'UPDATE groups SET name = $1, description = $2 WHERE id = $3 RETURNING *',
-    [name, description, id]
-  );
-  return result.rows[0];
-}
-
-// ลบกลุ่ม
-export async function deleteGroup(id) {
-  const result = await pool.query('DELETE FROM groups WHERE id = $1 RETURNING *', [id]);
-  return result.rowCount > 0;
 }
 

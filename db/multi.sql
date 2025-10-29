@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS posts (
   status        post_status DEFAULT 'unpublish',
   published_at  TIMESTAMPTZ,
   category      post_category NOT NULL,
+  s3_bucket     TEXT,
+  s3_key        TEXT,
   group_id      UUID REFERENCES groups(group_id) ON DELETE SET NULL,
   created_at    TIMESTAMPTZ DEFAULT now(),
   updated_at    TIMESTAMPTZ DEFAULT now(),
