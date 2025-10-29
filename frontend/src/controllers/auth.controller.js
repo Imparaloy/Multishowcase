@@ -110,6 +110,7 @@ export async function login(req, res) {
 
   try {
     const data = await cognitoClient.send(cmd);
+    console.log("AuthenticationResult:", data.AuthenticationResult);
     const { AccessToken, IdToken, RefreshToken, ExpiresIn } = data.AuthenticationResult;
 
     const baseCookieOptions = {
@@ -133,10 +134,12 @@ export async function login(req, res) {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
-        maxAge: 30 * 24 * 60 * 60 * 1000,
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         path: "/",
       });
     }
+
+    console.log("Cookies set:", res.getHeaders()["set-cookie"]);
 
     return res.redirect("/profile?username=" + encodeURIComponent(username));
   } catch (err) {
@@ -199,5 +202,49 @@ export async function oauthCallback(req, res) {
   } catch (e) {
     console.error(e.response?.data || e);
     return res.status(400).send("Callback exchange failed");
+  }
+}
+
+// ตัวอย่างการใช้ Access Token
+export async function fetchProtectedRoute(req, res) {
+  const accessToken = req.cookies.access_token;
+
+  if (!accessToken) {
+    return res.status(401).send("Access token not provided");
+  }
+
+  try {
+    const response = await fetch("/api/protected-route", {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${accessToken}`, // Access Token ที่ได้จาก Cognito
+      },
+    });
+
+    const data = await response.json();
+    return res.json(data);
+  } catch (err) {
+    console.error("Error fetching protected route:", err);
+    return res.status(500).json({
+      ok: false,
+      message: err?.message || "Internal Server Error",
+    });
+  }
+}
+
+export function protectedRoute(req, res) {
+  const token = req.cookies.access_token || req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ message: "No token provided" });
+  }
+
+  // ตรวจสอบ Token (เช่น ใช้ JWT หรือ Cognito)
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET); // หรือใช้ Cognito SDK
+    req.user = decoded;
+    return res.status(200).json({ message: "Access granted", user: req.user });
+  } catch (err) {
+    return res.status(403).json({ message: "Invalid token" });
   }
 }
