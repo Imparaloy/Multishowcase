@@ -107,15 +107,33 @@ export async function login(req, res) {
 
   try {
     const data = await cognitoClient.send(cmd);
-    const { AccessToken, ExpiresIn } = data.AuthenticationResult;
+    const { AccessToken, IdToken, RefreshToken, ExpiresIn } = data.AuthenticationResult;
 
-    res.cookie("access_token", AccessToken, {
+    const baseCookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: ExpiresIn * 1000,
       path: "/",
-    });
+    };
+
+    if (AccessToken) {
+      res.cookie("access_token", AccessToken, baseCookieOptions);
+    }
+
+    if (IdToken) {
+      res.cookie("id_token", IdToken, baseCookieOptions);
+    }
+
+    if (RefreshToken) {
+      res.cookie("refresh_token", RefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: "/",
+      });
+    }
 
     return res.redirect("/profile?username=" + encodeURIComponent(username));
   } catch (err) {
@@ -126,6 +144,8 @@ export async function login(req, res) {
 
 export function logout(req, res) {
   res.clearCookie("access_token");
+  res.clearCookie("id_token");
+  res.clearCookie("refresh_token");
   res.redirect("/login");
 }
 
@@ -134,7 +154,7 @@ export async function oauthCallback(req, res) {
   const code = req.query.code;
   try {
     const tokenRes = await axios.post(
-      `https://${process.env.COGNITO_DOMAIN}/oauth2/token`,
+      "https://" + process.env.COGNITO_DOMAIN + "/oauth2/token",
       stringify({
         grant_type: "authorization_code",
         client_id: process.env.COGNITO_CLIENT_ID,
@@ -144,15 +164,33 @@ export async function oauthCallback(req, res) {
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
 
-    const { access_token, expires_in } = tokenRes.data;
+    const { access_token, id_token, refresh_token, expires_in } = tokenRes.data;
 
-    res.cookie("access_token", access_token, {
+    const baseCookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: expires_in * 1000,
       path: "/",
-    });
+    };
+
+    if (access_token) {
+      res.cookie("access_token", access_token, baseCookieOptions);
+    }
+
+    if (id_token) {
+      res.cookie("id_token", id_token, baseCookieOptions);
+    }
+
+    if (refresh_token) {
+      res.cookie("refresh_token", refresh_token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        path: "/",
+      });
+    }
 
     return res.redirect("/profile");
   } catch (e) {
