@@ -48,8 +48,7 @@ export const createPost = async (req, res) => {
       throw Object.assign(new Error('Unauthorized: Unable to resolve user'), { cause: err });
     });
     
-    const { content } = req.body;
-    const files = req.files?.images || [];
+    const { content, mediaFiles } = req.body; // mediaFiles จะมี array ของ { key, filename, filetype }
     const tags = req.body.tags ? req.body.tags.split(',') : [];
     
     const categoryMap = {
@@ -70,24 +69,40 @@ export const createPost = async (req, res) => {
     
     const postId = postResult.rows[0].post_id;
     
-    if (files.length) {
-      const fileArray = Array.isArray(files) ? files : [files];
+    // เก็บข้อมูล media files ที่อัปโหลดไปยัง S3 แล้ว
+    if (mediaFiles && mediaFiles.length > 0) {
+      const parsedMediaFiles = typeof mediaFiles === 'string' ? JSON.parse(mediaFiles) : mediaFiles;
+      const fileArray = Array.isArray(parsedMediaFiles) ? parsedMediaFiles : [parsedMediaFiles];
+      
+      // ดึง username สำหรับการสร้าง S3 key
+      const claims = req.user || {};
+      const targetUsername = 
+        claims.username ||
+        claims['cognito:username'] ||
+        claims.email ||
+        claims.sub ||
+        'anonymous';
       
       for (let idx = 0; idx < fileArray.length; idx++) {
-        const file = fileArray[idx];
-        const fileName = Date.now() + '-' + file.name;
-        const uploadPath = path.join(__dirname, '../../uploads/', fileName);
+        const mediaFile = fileArray[idx];
         
-        await new Promise((resolve, reject) => {
-          file.mv(uploadPath, (err) => {
-            if (err) reject(err);
-            resolve();
-          });
-        });
+        // สร้าง S3 key ที่ตรงกับ pattern ใน getPresignedPutUrl
+        const s3Key = mediaFile.key || `users/${targetUsername}/uploads/${Date.now()}_${path.basename(mediaFile.filename)}`;
+        const s3Url = `https://${BUCKET}.s3.amazonaws.com/${s3Key}`;
         
         await client.query(
-          'INSERT INTO post_media (post_id, media_type, order_index) VALUES ($1, $2, $3)',
-          [postId, 'image', idx]
+          `INSERT INTO post_media (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type) 
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            postId, 
+            'image', 
+            idx, 
+            s3Key, 
+            s3Url, 
+            mediaFile.filename,
+            mediaFile.fileSize || null,
+            mediaFile.filetype || 'image/jpeg'
+          ]
         );
       }
     }
