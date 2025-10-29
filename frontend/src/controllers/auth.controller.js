@@ -61,14 +61,13 @@ export async function signup(req, res) {
 
     // 4) บันทึกข้อมูลลงใน PostgreSQL
     const query = `
-      INSERT INTO users (username, email, password, display_name, role, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO users (username, email, display_name, role, status)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING user_id, username, email, display_name, role, status, created_at;
     `;
     const values = [
       username,
       email,
-      password, // คุณควรเข้ารหัสรหัสผ่านก่อนบันทึก เช่น ใช้ bcrypt
       display_name || username, // ถ้าไม่มี display_name ให้ใช้ username
       "user", // ค่า role เริ่มต้น
       "active", // ค่า status เริ่มต้น
