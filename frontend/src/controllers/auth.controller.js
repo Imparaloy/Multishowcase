@@ -16,26 +16,7 @@ export function renderSignup(req, res) {
 }
 export function renderLogin(req, res) {
   res.render("login", { title: "Log In" });
-}import { STSClient, GetCallerIdentityCommand } from "@aws-sdk/client-sts";
-
-const stsClient = new STSClient({
-  region: process.env.AWS_REGION || "us-east-1",
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
-
-async function testCredentials() {
-  try {
-    const data = await stsClient.send(new GetCallerIdentityCommand({}));
-    console.log("AWS Credentials are valid:", data);
-  } catch (error) {
-    console.error("Invalid AWS Credentials:", error);
-  }
 }
-
-testCredentials();
 
 /* ---------- Helpers ---------- */
 async function isEmailTaken(email) {
