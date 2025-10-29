@@ -6,19 +6,6 @@ import cookieParser from "cookie-parser";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
-import { fromEnv } from '@aws-sdk/credential-providers';
-
-(async () => {
-  try {
-    const creds = await fromEnv()(); // 👈 เรียก provider แล้ว await
-    console.log('Loaded creds:', {
-      accessKeyId: creds.accessKeyId,
-      hasSessionToken: !!creds.sessionToken,
-    });
-  } catch (err) {
-    console.error('Load creds failed:', err);
-  }
-})();
 
 // ✅ สร้าง __filename และ __dirname ด้วยตัวเอง
 const __filename = fileURLToPath(import.meta.url);
@@ -34,6 +21,7 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from root /public
 app.use(express.static(join(__dirname, "..", "public")));
 
+import initializeDatabase from './config/init-db.js';
 import fileUpload from 'express-fileupload';
 import authRoutes from "./routes/auth.routes.js";
 import groupsRoutes from "./routes/groups.routes.js";
@@ -69,5 +57,11 @@ app.use("/", postsRoutes);
 // 404
 app.use((req, res) => res.status(404).send("Not found"));
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`http://localhost:${PORT}`));
+// Initialize database on startup
+initializeDatabase().then(() => {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`http://localhost:${PORT}`));
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
+});

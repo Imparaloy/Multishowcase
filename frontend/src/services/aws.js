@@ -1,5 +1,7 @@
 
-import { CognitoIdentityProviderClient, SignUpCommand, ConfirmSignUpCommand, InitiateAuthCommand } from "@aws-sdk/client-cognito-identity-provider";
+// This file duplicates functionality from cognito.service.js and s3.service.js
+// Consider removing this file and using the specific service files instead
+import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
 import { S3Client } from "@aws-sdk/client-s3";
 import dotenv from "dotenv";
 
@@ -25,4 +27,4 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.S3_BUCKET_NAME;
 
-export { cognito, s3, BUCKET, SignUpCommand, ConfirmSignUpCommand, InitiateAuthCommand };
+export { cognito, s3, BUCKET };

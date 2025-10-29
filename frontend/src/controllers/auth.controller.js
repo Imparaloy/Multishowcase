@@ -19,18 +19,7 @@ export function renderLogin(req, res) {
   res.render("login", { title: "Log In" });
 }
 
-// /* ---------- Helpers ---------- */
-// async function isEmailTaken(email) {
-//   const cmd = new ListUsersCommand({
-//     UserPoolId: process.env.COGNITO_USER_POOL_ID,
-//     Filter: `email = "${email}"`,
-//     Limit: 1,
-//   });
-//   const out = await cognitoClient.send(cmd);
-//   return Array.isArray(out.Users) && out.Users.length > 0;
-// }
-
-
+/* ---------- Helpers ---------- */
 export async function signup(req, res) {
   const { username, password, email, name: display_name } = req.body;
 
