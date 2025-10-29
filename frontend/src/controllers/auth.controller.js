@@ -19,25 +19,26 @@ export function renderLogin(req, res) {
   res.render("login", { title: "Log In" });
 }
 
-/* ---------- Helpers ---------- */
-async function isEmailTaken(email) {
-  const cmd = new ListUsersCommand({
-    UserPoolId: process.env.COGNITO_USER_POOL_ID,
-    Filter: `email = "${email}"`,
-    Limit: 1,
-  });
-  const out = await cognitoClient.send(cmd);
-  return Array.isArray(out.Users) && out.Users.length > 0;
-}
+// /* ---------- Helpers ---------- */
+// async function isEmailTaken(email) {
+//   const cmd = new ListUsersCommand({
+//     UserPoolId: process.env.COGNITO_USER_POOL_ID,
+//     Filter: `email = "${email}"`,
+//     Limit: 1,
+//   });
+//   const out = await cognitoClient.send(cmd);
+//   return Array.isArray(out.Users) && out.Users.length > 0;
+// }
 
 
 export async function signup(req, res) {
   const { username, password, email, name: display_name } = req.body;
 
   try {
-    // 1) ตรวจสอบว่า email ซ้ำใน Cognito หรือไม่
-    if (await isEmailTaken(email)) {
-      return res.status(400).json({ ok: false, message: "Email already registered" });
+    // 1) ตรวจสอบว่าอีเมลซ้ำใน PostgreSQL หรือไม่
+    const emailCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (emailCheck.rows.length > 0) {
+      return res.status(400).json({ ok: false, message: "Email already exists in database" });
     }
 
     // 2) สมัครใน Cognito
@@ -58,22 +59,7 @@ export async function signup(req, res) {
       })
     );
 
-    // 4) ตั้ง email_verified=true ใน Cognito
-    await cognitoClient.send(
-      new AdminUpdateUserAttributesCommand({
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: username,
-        UserAttributes: [{ Name: "email_verified", Value: "true" }],
-      })
-    );
-
-    // 5) ตรวจสอบว่า email ซ้ำใน PostgreSQL หรือไม่
-    const emailCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (emailCheck.rows.length > 0) {
-      return res.status(400).json({ ok: false, message: "Email already exists in database" });
-    }
-
-    // 6) บันทึกข้อมูลลงใน PostgreSQL
+    // 4) บันทึกข้อมูลลงใน PostgreSQL
     const query = `
       INSERT INTO users (username, email, password, display_name, role, status)
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -90,11 +76,11 @@ export async function signup(req, res) {
 
     const result = await pool.query(query, values);
 
-    // 7) ส่ง response กลับไปยัง client
+    // 5) ส่ง response กลับไปยัง client
     return res.status(201).json({
       ok: true,
       message: "Sign up successful. Your account is confirmed. You can log in now.",
-      user: result.rows[0], // ข้อมูลผู้ใช้ที่บันทึกใน PostgreSQL
+      user: result.rows[0],
     });
   } catch (err) {
     console.error("Error during sign up:", err);
