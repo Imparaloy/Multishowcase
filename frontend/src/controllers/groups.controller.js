@@ -1,6 +1,5 @@
 import pool from '../config/dbconn.js';
 import {
-  getAllGroups,
   addGroup,
   findGroupById,
   updateGroup,
