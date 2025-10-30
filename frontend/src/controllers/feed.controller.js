@@ -103,7 +103,8 @@ export const getUnifiedFeed = async (options = {}) => {
     searchTerm = null,
     authorId = null,
     groupId = null,
-    statuses = ['published']
+    statuses = ['published'],
+    viewerId = null
   } = options;
 
   const trimmedStatuses = Array.isArray(statuses)
@@ -111,18 +112,57 @@ export const getUnifiedFeed = async (options = {}) => {
     : [];
 
   const effectiveStatuses = trimmedStatuses.length ? trimmedStatuses : ['published'];
+  const publicStatuses = effectiveStatuses.filter((status) => status === 'published');
+  const restrictedStatuses = effectiveStatuses.filter((status) => status !== 'published');
 
   const conditions = [];
   const values = [];
 
-  if (effectiveStatuses.length === 1) {
-    values.push(effectiveStatuses[0]);
+  const statusClauses = [];
+
+  const appendStatusEquality = (status) => {
+    values.push(status);
     const idx = values.length;
-    conditions.push(`p.status = $${idx}::post_status`);
+    return `p.status = $${idx}::post_status`;
+  };
+
+  const appendStatusArray = (statusArr) => {
+    values.push(statusArr);
+    const idx = values.length;
+    return `p.status = ANY($${idx}::post_status[])`;
+  };
+
+  if (publicStatuses.length === 1) {
+    statusClauses.push(appendStatusEquality(publicStatuses[0]));
+  } else if (publicStatuses.length > 1) {
+    statusClauses.push(appendStatusArray(publicStatuses));
+  }
+
+  if (restrictedStatuses.length) {
+    if (viewerId) {
+      const statusClause = restrictedStatuses.length === 1
+        ? appendStatusEquality(restrictedStatuses[0])
+        : appendStatusArray(restrictedStatuses);
+      values.push(viewerId);
+      const viewerIdx = values.length;
+      statusClauses.push(`(${statusClause} AND p.author_id = $${viewerIdx})`);
+    } else if (authorId || groupId) {
+      // Caller explicitly scopes posts; honor requested statuses.
+      const statusClause = restrictedStatuses.length === 1
+        ? appendStatusEquality(restrictedStatuses[0])
+        : appendStatusArray(restrictedStatuses);
+      statusClauses.push(statusClause);
+    }
+  }
+
+  if (!statusClauses.length) {
+    statusClauses.push(appendStatusEquality('published'));
+  }
+
+  if (statusClauses.length === 1) {
+    conditions.push(statusClauses[0]);
   } else {
-    values.push(effectiveStatuses);
-    const idx = values.length;
-    conditions.push(`p.status = ANY($${idx}::post_status[])`);
+    conditions.push(`(${statusClauses.join(' OR ')})`);
   }
 
   // Add category filter

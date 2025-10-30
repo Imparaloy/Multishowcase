@@ -217,9 +217,12 @@ export async function renderGroupDetailsPage(req, res) {
     const members = Array.isArray(group.members) ? group.members : [];
     const isMember = currentUser ? members.some((m) => m.user_id === currentUser.user_id) : false;
 
+    const canSeeUnpublished = Boolean(currentUser);
+    const statuses = canSeeUnpublished ? ['published', 'unpublish'] : ['published'];
     const posts = await getUnifiedFeed({
       groupId: id,
-      statuses: ['published', 'unpublish']
+      statuses,
+      viewerId: canSeeUnpublished ? currentUser.user_id : null
     });
 
     const pendingRequests = [];

@@ -11,7 +11,13 @@ export const getForYouPosts = async (req, res) => {
     const page  = Math.max(parseInt(req.query.page  || '1', 10), 1);
     const offset = (page - 1) * limit;
 
-    const feed = await getUnifiedFeed({ limit, offset });
+    const viewerId = currentUser?.user_id || null;
+    const feed = await getUnifiedFeed({
+      limit,
+      offset,
+      viewerId,
+      statuses: viewerId ? ['published', 'unpublish'] : ['published']
+    });
     
     if (feed.length) {
       console.log('Home feed first media sample:', feed[0].media);
@@ -42,7 +48,13 @@ export const getFollowingPosts = async (req, res) => {
     const offset = (page - 1) * limit;
 
     // TODO: ถ้ามีตาราง follows ให้เปลี่ยน WHERE ให้เหลือเฉพาะ author ที่ currentUser ติดตาม
-    const feed = await getUnifiedFeed({ limit, offset });
+    const viewerId = currentUser?.user_id || null;
+    const feed = await getUnifiedFeed({
+      limit,
+      offset,
+      viewerId,
+      statuses: viewerId ? ['published', 'unpublish'] : ['published']
+    });
     
     if (feed.length) {
       console.log('Following feed first media sample:', feed[0].media);

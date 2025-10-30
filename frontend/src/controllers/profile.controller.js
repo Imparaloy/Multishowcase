@@ -10,7 +10,8 @@ import {
 async function fetchPostsForUser(userRecord) {
   const posts = await getUnifiedFeed({
     authorId: userRecord.user_id,
-    statuses: ['published', 'unpublish']
+    statuses: ['published', 'unpublish'],
+    viewerId: userRecord.user_id
   });
   
   return posts.map((row) => {
