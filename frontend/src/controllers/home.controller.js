@@ -27,7 +27,7 @@ SELECT
   u.user_id       AS author_id,
   u.username      AS author_username,
   COALESCE(u.display_name, u.username) AS author_display_name,
-  u.avatar_url    AS author_avatar,
+  NULL::text      AS author_avatar,
   COALESCE(
     json_agg(
       jsonb_build_object(
@@ -50,7 +50,7 @@ LEFT JOIN post_media pm ON pm.post_id = p.post_id
 WHERE p.status = 'published'::post_status
 GROUP BY
   p.post_id, p.title, p.body, p.category, p.status, p.published_at, p.created_at,
-  u.user_id, u.username, u.display_name, u.avatar_url
+  u.user_id, u.username, u.display_name
 ORDER BY COALESCE(p.published_at, p.created_at) DESC
 LIMIT $1 OFFSET $2
 `;
