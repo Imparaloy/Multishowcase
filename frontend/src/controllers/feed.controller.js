@@ -12,42 +12,62 @@ const CATEGORY_MAP = {
   'ux-ui': 'UX/UI design'
 };
 
-function extractMediaUrls(rawMedia) {
-  let list = [];
+function normalizeMediaEntries(rawMedia) {
+  if (!rawMedia) return [];
+
+  const toObject = (entry) => {
+    if (!entry) return null;
+    if (typeof entry === 'object') return entry;
+    if (typeof entry === 'string') {
+      try {
+        const parsed = JSON.parse(entry);
+        return typeof parsed === 'object' && parsed !== null ? parsed : null;
+      } catch {
+        return entry.startsWith('http') ? { url: entry } : null;
+      }
+    }
+    return null;
+  };
+
   if (Array.isArray(rawMedia)) {
-    list = rawMedia;
-  } else if (typeof rawMedia === 'string' && rawMedia.trim()) {
+    return rawMedia.map(toObject).filter(Boolean);
+  }
+
+  if (typeof rawMedia === 'string') {
     try {
       const parsed = JSON.parse(rawMedia);
       if (Array.isArray(parsed)) {
-        list = parsed;
+        return parsed.map(toObject).filter(Boolean);
       }
+      const single = toObject(parsed);
+      return single ? [single] : [];
     } catch (err) {
       console.warn('Failed to parse media JSON:', err.message);
+      return [];
     }
-  } else if (rawMedia && typeof rawMedia === 'object') {
-    list = [rawMedia];
   }
 
-  const urls = list
+  if (typeof rawMedia === 'object') {
+    const objectEntry = toObject(rawMedia);
+    return objectEntry ? [objectEntry] : [];
+  }
+
+  return [];
+}
+
+function extractMediaUrls(mediaEntries = []) {
+  return mediaEntries
     .map((entry) => {
       if (!entry) return null;
       if (typeof entry === 'string') {
-        try {
-          const parsed = JSON.parse(entry);
-          return parsed?.s3_url || null;
-        } catch {
-          return entry.startsWith('http') ? entry : null;
-        }
+        return entry.startsWith('http') ? entry : null;
       }
       if (typeof entry === 'object') {
-        return entry?.s3_url || entry?.url || null;
+        return entry.s3_url || entry.url || null;
       }
       return null;
     })
     .filter(Boolean);
-
-  return urls;
 }
 
 /**
@@ -154,8 +174,9 @@ export const getUnifiedFeed = async (options = {}) => {
   const { rows } = await pool.query(query, values);
 
   return rows.map((row) => {
-    const media = extractMediaUrls(row.media);
-    const primaryMedia = media.length ? media[0] : null;
+    const mediaEntries = normalizeMediaEntries(row.media);
+    const mediaUrls = extractMediaUrls(mediaEntries);
+    const primaryMedia = mediaUrls.length ? mediaUrls[0] : null;
     const body = row.body || '';
 
     return {
@@ -164,7 +185,9 @@ export const getUnifiedFeed = async (options = {}) => {
       post_id: row.post_id,
       body,
       content: body,
-      media,
+      media: mediaUrls,
+      mediaUrls,
+      mediaMetadata: mediaEntries,
       primaryMedia,
       comments: Number(row.comments_count ?? 0),
       likes: Number(row.likes_count ?? 0)
