@@ -234,7 +234,6 @@ export const getExploreFeed = async (req, res) => {
           media: post.media,
           comments: post.comments,
           likes: post.likes,
-          canDelete: false,
           currentUser: res.locals.user || null
         })
       )

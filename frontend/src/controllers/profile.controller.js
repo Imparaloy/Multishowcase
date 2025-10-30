@@ -47,6 +47,7 @@ function buildViewUser(req, userRecord = null) {
       displayName,
       username,
       email,
+      groups: req.user?.groups || [],
     },
   };
 }

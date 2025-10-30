@@ -73,21 +73,13 @@
 					<%- include('components/newpost', { placeholder: "Share something…" }) %>
 				<% } %>
 
-				<!-- Tabs (static for now) -->
+				<!-- Posts Header -->
 				<div class="flex justify-center border-b border-gray-700">
-					<a
-						href="#"
-						aria-current="page"
-						class="block w-1/2 py-3 text-center border-b-2 -mb-px transition border-purple-400 text-white"
+					<div
+						class="block w-full py-3 text-center border-b-2 -mb-px transition border-purple-400 text-white"
 					>
 						Posts
-					</a>
-					<a
-						href="#"
-						class="block w-1/2 py-3 text-center border-b-2 -mb-px transition border-transparent text-gray-400 hover:text-white hover:border-purple-400"
-					>
-						Likes
-					</a>
+					</div>
 				</div>
 
 				<!-- Feed Posts -->
@@ -103,8 +95,7 @@
 									media: Array.isArray(post.media) ? post.media.map(m => (m && m.s3_url) ? m.s3_url : null).filter(Boolean) : [],
 									comments: post.comments || 0,
 									likes: post.likes || 0,
-									primaryMedia: null,
-									canDelete: false
+									primaryMedia: null
 								}) %>
 							</div>
 						<% }) %>

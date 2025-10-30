@@ -42,15 +42,23 @@ function extractMediaUrls(rawMedia) {
 // หา user ปัจจุบันจาก JWT
 async function loadCurrentUser(req) {
   const claims = req.user || {};
+  let userRecord = null;
+  
   if (claims.user_id) {
     const { rows } = await pool.query('SELECT * FROM users WHERE user_id = $1', [claims.user_id]);
-    return rows[0] || null;
+    userRecord = rows[0] || null;
   }
-  if (claims.sub) {
+  if (claims.sub && !userRecord) {
     const { rows } = await pool.query('SELECT * FROM users WHERE cognito_sub = $1', [claims.sub]);
-    return rows[0] || null;
+    userRecord = rows[0] || null;
   }
-  return null;
+  
+  if (userRecord) {
+    // Add groups from JWT token to user record
+    userRecord.groups = claims.groups || [];
+  }
+  
+  return userRecord;
 }
 
 const BASE_FEED_SQL = `

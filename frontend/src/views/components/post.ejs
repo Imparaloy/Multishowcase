@@ -2,7 +2,7 @@
 // User permissions and context
 const userContext = typeof currentUser !== 'undefined' ? currentUser : null;
 const isOwner = userContext && typeof username !== 'undefined' && userContext.username === username;
-const isAdmin = userContext && userContext.role === 'admin';
+const isAdmin = userContext && Array.isArray(userContext.groups) && userContext.groups.includes('admin');
 const canDeleteFromProps = typeof canDelete !== 'undefined' ? canDelete : null;
 const canDeletePost = canDeleteFromProps !== null ? canDeleteFromProps : (isOwner || isAdmin);
 
