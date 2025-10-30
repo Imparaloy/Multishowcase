@@ -12,6 +12,7 @@ import {
 const router = express.Router();
 
 router.get('/profile', authenticateCognitoJWT, requireAuth, renderProfilePage);
+router.get('/profile/:username', authenticateCognitoJWT, requireAuth, renderProfilePage);
 
 router.get(
   '/profile/edit',

@@ -1,5 +1,6 @@
 import pool from '../config/dbconn.js';
 import TAG_LIST from '../data/tags.js';
+import { getUnifiedFeed } from './feed.controller.js';
 
 // แสดงหน้า groups ทั้งหมด
 export async function renderGroupsPage(req, res) {
@@ -66,11 +67,7 @@ export async function renderGroupDetailsPage(req, res) {
     );
     const members = membersRes.rows;
     const isMember = members.some(m => m.user_id === currentUser.user_id);
-    const postsRes = await pool.query(
-      `SELECT p.*, u.username, u.display_name FROM posts p JOIN users u ON p.author_id = u.user_id WHERE p.group_id = $1 ORDER BY p.created_at DESC`,
-      [id]
-    );
-    const posts = postsRes.rows;
+    const posts = await getUnifiedFeed({ groupId: id });
     const pendingRequests = [];
     const tagMap = Object.fromEntries(TAG_LIST.map(t => [t.slug, t.label]));
     return res.render('group-details', {

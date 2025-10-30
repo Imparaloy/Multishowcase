@@ -31,6 +31,8 @@ import commentRoutes from "./routes/comment.routes.js";
 import profileRoutes from "./routes/profile.routes.js";
 import postsRoutes from "./routes/posts.routes.js";
 import reportsRoutes from "./routes/reports.routes.js";
+import sseRoutes from "./routes/sse.routes.js";
+import renderRoutes from "./routes/render.routes.js";
 
 // Configure express-fileupload
 app.use(fileUpload({
@@ -55,6 +57,8 @@ app.use("/", commentRoutes);
 app.use("/", profileRoutes);
 app.use("/", postsRoutes);
 app.use("/api", reportsRoutes);
+app.use("/api", sseRoutes);
+app.use("/api", renderRoutes);
 
 // 404
 app.use((req, res) => res.status(404).send("Not found"));

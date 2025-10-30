@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { headObjectExists, publicUrlForKey, uploadObject, getPresignedPutUrl as s3PresignPut } from '../services/s3.service.js'
+import { broadcastNewPost, broadcastPostDeletion } from './sse.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -253,6 +254,72 @@ export const createPost = async (req, res) => {
 
     await client.query('COMMIT');
 
+    // Get the complete post data for broadcasting
+    const { rows: postRows } = await client.query(`
+      SELECT
+        p.post_id,
+        p.title,
+        p.body,
+        p.category,
+        p.status,
+        p.published_at,
+        p.created_at,
+        u.user_id AS author_id,
+        u.username AS author_username,
+        COALESCE(u.display_name, u.username) AS author_display_name,
+        COALESCE(
+          json_agg(
+            jsonb_build_object(
+              'media_id', pm.post_media_id,
+              'media_type', pm.media_type,
+              'order_index', pm.order_index,
+              's3_key', pm.s3_key,
+              's3_url', pm.s3_url,
+              'filename', pm.original_filename,
+              'file_size', pm.file_size,
+              'content_type', pm.content_type
+            )
+            ORDER BY pm.order_index NULLS LAST
+          ) FILTER (WHERE pm.post_media_id IS NOT NULL),
+          '[]'
+        ) AS media
+      FROM posts p
+      JOIN users u ON u.user_id = p.author_id
+      LEFT JOIN post_media pm ON pm.post_id = p.post_id
+      WHERE p.post_id = $1
+      GROUP BY
+        p.post_id, p.title, p.body, p.category, p.status, p.published_at, p.created_at,
+        u.user_id, u.username, u.display_name
+    `, [postId]);
+
+    if (postRows.length > 0) {
+      const newPost = postRows[0];
+      // Extract media URLs for broadcasting
+      const mediaUrls = [];
+      if (Array.isArray(newPost.media)) {
+        newPost.media.forEach(m => {
+          if (m && m.s3_url) {
+            mediaUrls.push(m.s3_url);
+          }
+        });
+      }
+      
+      // Broadcast the new post to all connected clients
+      broadcastNewPost({
+        id: newPost.post_id,
+        post_id: newPost.post_id,
+        title: newPost.title,
+        body: newPost.body,
+        category: newPost.category,
+        author_id: newPost.author_id,
+        author_username: newPost.author_username,
+        author_display_name: newPost.author_display_name,
+        media: mediaUrls,
+        published_at: newPost.published_at,
+        created_at: newPost.created_at
+      });
+    }
+
     return res.status(201).json({
       success: true,
       postId,
@@ -330,6 +397,9 @@ export const deletePost = async (req, res) => {
     await client.query('DELETE FROM posts WHERE post_id = $1', [postId]);
     
     await client.query('COMMIT');
+    
+    // Broadcast the post deletion to all connected clients
+    broadcastPostDeletion(postId);
     
     res.status(200).json({
       success: true,

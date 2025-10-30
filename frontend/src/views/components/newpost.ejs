@@ -161,7 +161,23 @@
           renderTags();
           updateToggleState();
 
-          window.location.reload();
+          // Clear form and let SSE handle the update
+          ta.value = '';
+          selectedFiles = [];
+          renderPreviews();
+          selectedCategory = null;
+          renderTags();
+          updateToggleState();
+          
+          // Show success message
+          submitBtn.innerHTML = '<span class="flex items-center"><i data-feather="check-circle" class="w-4 h-4 mr-2 text-green-400"></i>โพสต์สำเร็จ!</span>';
+          feather.replace();
+          
+          // Reset button after 2 seconds
+          setTimeout(() => {
+            submitBtn.innerHTML = 'Post';
+            feather.replace();
+          }, 2000);
         } catch (error) {
           console.error('Error creating post:', error);
           alert('Failed to create post. Please try again.');

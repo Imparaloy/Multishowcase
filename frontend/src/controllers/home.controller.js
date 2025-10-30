@@ -1,43 +1,6 @@
 // home.controller.js
 import pool from '../config/dbconn.js';
-
-function extractMediaUrls(rawMedia) {
-  let list = [];
-  if (Array.isArray(rawMedia)) {
-    list = rawMedia;
-  } else if (typeof rawMedia === 'string' && rawMedia.trim()) {
-    try {
-      const parsed = JSON.parse(rawMedia);
-      if (Array.isArray(parsed)) {
-        list = parsed;
-      }
-    } catch (err) {
-      console.warn('Failed to parse media JSON:', err.message);
-    }
-  } else if (rawMedia && typeof rawMedia === 'object') {
-    list = [rawMedia];
-  }
-
-  const urls = list
-    .map((entry) => {
-      if (!entry) return null;
-      if (typeof entry === 'string') {
-        try {
-          const parsed = JSON.parse(entry);
-          return parsed?.s3_url || null;
-        } catch {
-          return entry.startsWith('http') ? entry : null;
-        }
-      }
-      if (typeof entry === 'object') {
-        return entry?.s3_url || entry?.url || null;
-      }
-      return null;
-    })
-    .filter(Boolean);
-
-  return urls;
-}
+import { getUnifiedFeed } from './feed.controller.js';
 
 // หา user ปัจจุบันจาก JWT
 async function loadCurrentUser(req) {
@@ -61,45 +24,6 @@ async function loadCurrentUser(req) {
   return userRecord;
 }
 
-const BASE_FEED_SQL = `
-SELECT
-  p.post_id,
-  p.title,
-  p.body,
-  p.category,
-  p.status,
-  p.published_at,
-  p.created_at,
-  u.user_id       AS author_id,
-  u.username      AS author_username,
-  COALESCE(u.display_name, u.username) AS author_display_name,
-  COALESCE(
-    json_agg(
-      jsonb_build_object(
-        'media_id',     pm.post_media_id,
-        'media_type',   pm.media_type,
-        'order_index',  pm.order_index,
-        's3_key',       pm.s3_key,
-        's3_url',       pm.s3_url,
-        'filename',     pm.original_filename,
-        'file_size',    pm.file_size,
-        'content_type', pm.content_type
-      )
-      ORDER BY pm.order_index NULLS LAST
-    ) FILTER (WHERE pm.post_media_id IS NOT NULL),
-    '[]'
-  ) AS media
-FROM posts p
-JOIN users u ON u.user_id = p.author_id
-LEFT JOIN post_media pm ON pm.post_id = p.post_id
-WHERE p.status = 'published'::post_status
-GROUP BY
-  p.post_id, p.title, p.body, p.category, p.status, p.published_at, p.created_at,
-  u.user_id, u.username, u.display_name
-ORDER BY COALESCE(p.published_at, p.created_at) DESC
-LIMIT $1 OFFSET $2
-`;
-
 export const getForYouPosts = async (req, res) => {
   try {
     const currentUser = await loadCurrentUser(req);
@@ -109,15 +33,12 @@ export const getForYouPosts = async (req, res) => {
     const page  = Math.max(parseInt(req.query.page  || '1', 10), 1);
     const offset = (page - 1) * limit;
 
-    const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
-    // map media ให้เป็น array ของ S3 URL string
-    const feed = rows.map(row => {
-      const media = extractMediaUrls(row.media);
-      return { ...row, media };
-    });
+    const feed = await getUnifiedFeed({ limit, offset });
+    
     if (feed.length) {
       console.log('Home feed first media sample:', feed[0].media);
     }
+    
     return res.render('home', {
       activeTab: 'foryou',
       feed,
@@ -143,14 +64,12 @@ export const getFollowingPosts = async (req, res) => {
     const offset = (page - 1) * limit;
 
     // TODO: ถ้ามีตาราง follows ให้เปลี่ยน WHERE ให้เหลือเฉพาะ author ที่ currentUser ติดตาม
-    const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
-    const feed = rows.map(row => {
-      const media = extractMediaUrls(row.media);
-      return { ...row, media };
-    });
+    const feed = await getUnifiedFeed({ limit, offset });
+    
     if (feed.length) {
       console.log('Following feed first media sample:', feed[0].media);
     }
+    
     return res.render('home', {
       activeTab: 'following',
       feed,

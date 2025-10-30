@@ -1,6 +1,7 @@
 import { AdminUpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
 import { cognitoClient } from "../services/cognito.service.js";
 import pool from "../config/dbconn.js";
+import { getUnifiedFeed } from "./feed.controller.js";
 
 function fallbackEmailFromSub(sub) {
   return `user-${sub}@placeholder.local`;
@@ -81,48 +82,11 @@ async function ensureUserRecord(client, claims) {
   return result.rows[0];
 }
 
-async function fetchPostsForUser(client, userRecord) {
-  const { rows } = await client.query(
-    `SELECT
-       p.post_id,
-       p.title,
-       p.body,
-       p.status,
-       p.created_at,
-       COALESCE(media.media_urls, ARRAY[]::text[]) AS media_urls,
-       COALESCE(comments.comment_count, 0) AS comment_count,
-       COALESCE(likes.like_count, 0) AS like_count
-     FROM posts p
-     LEFT JOIN LATERAL (
-       SELECT array_agg(pm.s3_url ORDER BY pm.order_index) AS media_urls
-       FROM post_media pm
-       WHERE pm.post_id = p.post_id
-     ) AS media ON TRUE
-     LEFT JOIN LATERAL (
-       SELECT COUNT(*)::int AS comment_count
-       FROM comments c
-       WHERE c.post_id = p.post_id
-     ) AS comments ON TRUE
-     LEFT JOIN LATERAL (
-       SELECT COUNT(*)::int AS like_count
-       FROM likes l
-       WHERE l.post_id = p.post_id
-     ) AS likes ON TRUE
-     WHERE p.author_id = $1
-     ORDER BY p.created_at DESC`,
-    [userRecord.user_id]
-  );
-
-  return rows.map((row) => {
-    // media_urls ควรเป็น array ของ string (S3 URL) ถ้าไม่ ให้ map เป็น string
-    let media = Array.isArray(row.media_urls)
-      ? row.media_urls.filter(Boolean)
-      : [];
-    // ถ้า media เป็น array ของ object (เช่น { s3_url: ... }) ให้ map เป็น string
-    if (media.length && typeof media[0] === 'object' && media[0] !== null && media[0].s3_url) {
-      media = media.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
-    }
-    const primaryMedia = media.length ? media[0] : null;
+async function fetchPostsForUser(userRecord) {
+  const posts = await getUnifiedFeed({ authorId: userRecord.user_id });
+  
+  return posts.map((row) => {
+    const primaryMedia = row.media && row.media.length ? row.media[0] : null;
     const body = row.body || "";
 
     return {
@@ -132,12 +96,12 @@ async function fetchPostsForUser(client, userRecord) {
       title: row.title || "",
       body,
       content: body,
-      media,
+      media: row.media || [],
       primaryMedia,
       status: row.status,
       createdAt: row.created_at,
-      comments: Number(row.comment_count) || 0,
-      likes: Number(row.like_count) || 0,
+      comments: row.comments || 0,
+      likes: row.likes || 0,
     };
   });
 }
@@ -152,7 +116,7 @@ export async function renderProfilePage(req, res) {
       client = await pool.connect();
       userRecord = await ensureUserRecord(client, req.user);
       if (userRecord) {
-        feed = await fetchPostsForUser(client, userRecord);
+        feed = await fetchPostsForUser(userRecord);
         if (feed.length) {
           console.log('Profile feed first media sample:', feed[0].media);
         }

@@ -1,4 +1,4 @@
-import pool from '../config/dbconn.js';
+import { getUnifiedFeed } from './feed.controller.js';
 
 const DEFAULT_LIMIT = 10;
 
@@ -33,131 +33,15 @@ function toNumber(value, fallback) {
   return parsed;
 }
 
-function extractMediaUrls(rawMedia) {
-  if (!Array.isArray(rawMedia)) return [];
-  return rawMedia
-    .map((entry) => {
-      if (!entry) return null;
-      if (typeof entry === 'string') {
-        try {
-          const parsed = JSON.parse(entry);
-          return parsed?.s3_url || null;
-        } catch {
-          return null;
-        }
-      }
-      if (typeof entry === 'object') {
-        return entry?.s3_url || null;
-      }
-      return null;
-    })
-    .filter(Boolean);
-}
-
-function formatPostRow(row) {
-  let mediaUrls = extractMediaUrls(row.media);
-  // ถ้า mediaUrls เป็น array ของ object (เช่น { s3_url: ... }) ให้ map เป็น string
-  if (mediaUrls.length && typeof mediaUrls[0] === 'object' && mediaUrls[0] !== null && mediaUrls[0].s3_url) {
-    mediaUrls = mediaUrls.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
-  }
-  return {
-    id: row.post_id,
-    post_id: row.post_id,
-    body: row.body || '',
-    title: row.title || null,
-    category: row.category || null,
-    author_id: row.author_id,
-    author_username: row.author_username,
-    author_display_name: row.author_display_name,
-    mediaUrls,
-    media: mediaUrls,
-    comments: Number(row.comments_count ?? 0),
-    likes: Number(row.likes_count ?? 0),
-    published_at: row.published_at,
-    created_at: row.created_at
-  };
-}
-
 async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset }) {
-  const conditions = [`p.status = 'published'::post_status`];
-  const values = [];
-
-  const categoryLabel = categoryLabelForSlug(tagSlug);
-  if (categoryLabel) {
-    values.push(categoryLabel);
-    const idx = values.length;
-    conditions.push(`p.category = $${idx}::post_category`);
-  }
-
-  if (searchTerm) {
-    values.push(`%${searchTerm}%`);
-    const idx = values.length;
-    conditions.push(
-      `(p.title ILIKE $${idx} OR p.body ILIKE $${idx} OR u.username ILIKE $${idx} OR u.display_name ILIKE $${idx})`
-    );
-  }
-
-  values.push(limit);
-  const limitIdx = values.length;
-  values.push(offset);
-  const offsetIdx = values.length;
-
-  const text = `
-    SELECT
-      p.post_id,
-      p.title,
-      p.body,
-      p.category,
-      p.status,
-      p.published_at,
-      p.created_at,
-      u.user_id       AS author_id,
-      u.username      AS author_username,
-      COALESCE(u.display_name, u.username) AS author_display_name,
-      COALESCE(pm.media, '[]'::json)        AS media,
-      COALESCE(c.comments_count, 0)         AS comments_count,
-      COALESCE(l.likes_count, 0)            AS likes_count
-    FROM posts p
-    JOIN users u ON u.user_id = p.author_id
-    LEFT JOIN LATERAL (
-      SELECT json_agg(
-        jsonb_build_object(
-          'post_media_id', media.post_media_id,
-          'media_type',    media.media_type,
-          'order_index',   media.order_index,
-          's3_key',        media.s3_key,
-          's3_url',        media.s3_url,
-          'filename',      media.original_filename,
-          'file_size',     media.file_size,
-          'content_type',  media.content_type
-        )
-        ORDER BY media.order_index NULLS LAST
-      ) AS media
-      FROM post_media media
-      WHERE media.post_id = p.post_id
-    ) pm ON true
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS comments_count
-      FROM comments c
-      WHERE c.post_id = p.post_id
-    ) c ON true
-    LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS likes_count
-      FROM likes l
-      WHERE l.post_id = p.post_id
-    ) l ON true
-    WHERE ${conditions.join(' AND ')}
-    ORDER BY COALESCE(p.published_at, p.created_at) DESC
-    LIMIT $${limitIdx} OFFSET $${offsetIdx}
-  `;
-
-  const { rows } = await pool.query(text, values);
-    if (rows.length) {
-      const formattedRows = rows.map(formatPostRow);
-      console.log('Explore feed first media sample:', formattedRows[0].media);
-      return formattedRows;
-    }
-  return rows.map(formatPostRow);
+  const category = categoryLabelForSlug(tagSlug);
+  
+  return await getUnifiedFeed({
+    limit,
+    offset,
+    category: tagSlug === 'all' ? null : tagSlug,
+    searchTerm
+  });
 }
 
 function renderPostPartial(req, locals) {
