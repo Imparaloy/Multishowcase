@@ -27,6 +27,18 @@ export async function objectsToSignedGet(objects, expiresIn = 300) {
   );
 }
 
+// Upload raw data to S3
+export async function uploadObject({ key, body, contentType }) {
+  const cmd = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  });
+  await client.send(cmd);
+  return publicUrlForKey(key);
+}
+
 // Check if an object exists in S3 (returns boolean)
 export async function headObjectExists(key) {
   try {

@@ -3,13 +3,89 @@ import pool from '../config/dbconn.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { headObjectExists, publicUrlForKey, getPresignedPutUrl as s3PresignPut, BUCKET } from '../services/s3.service.js'
+import { headObjectExists, publicUrlForKey, uploadObject, getPresignedPutUrl as s3PresignPut } from '../services/s3.service.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 function fallbackEmailFromSub(sub) {
   return `user-${sub}@placeholder.local`;
+}
+
+function inferMediaType(mime = '') {
+  if (typeof mime !== 'string') return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('image/')) return 'image';
+  return 'link';
+}
+
+function resolveUploadUsername(user = {}) {
+  return (
+    user.username ||
+    user['cognito:username'] ||
+    user.email ||
+    user.sub ||
+    'anonymous'
+  );
+}
+
+function normalizeMediaMetadata(input) {
+  if (!input) return [];
+
+  let raw = input;
+  if (typeof input === 'string') {
+    try {
+      raw = JSON.parse(input);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(raw)) {
+    raw = [raw];
+  }
+
+  return raw
+    .map((entry) => {
+      if (!entry) return null;
+      if (typeof entry === 'string') {
+        try {
+          return JSON.parse(entry);
+        } catch {
+          return null;
+        }
+      }
+      return entry;
+    })
+    .filter((entry) => entry && typeof entry === 'object' && entry.key);
+}
+
+async function uploadIncomingMedia(files, user) {
+  if (!files) return [];
+
+  const targetUsername = resolveUploadUsername(user);
+  const list = Array.isArray(files) ? files : [files];
+  const uploads = [];
+
+  for (const file of list) {
+    if (!file) continue;
+    const baseName = file.name ? path.basename(file.name) : `upload_${Date.now()}`;
+    const key = `users/${targetUsername}/uploads/${Date.now()}_${baseName}`;
+    await uploadObject({
+      key,
+      body: file.data,
+      contentType: file.mimetype || 'application/octet-stream'
+    });
+    uploads.push({
+      key,
+      media_type: inferMediaType(file.mimetype),
+      filename: file.name || baseName,
+      fileSize: file.size,
+      filetype: file.mimetype || null
+    });
+  }
+
+  return uploads;
 }
 
 async function resolveAuthorId(client, claims) {
@@ -44,24 +120,25 @@ async function resolveAuthorId(client, claims) {
 
 export const createPost = async (req, res) => {
   const client = await pool.connect();
+
   try {
     await client.query('BEGIN');
 
-    if (!req.user || !req.user.sub) {
-      throw new Error('Unauthorized: missing req.user.sub');
+    if (!req.user?.sub) {
+      throw new Error('Unauthorized: Missing Cognito subject');
     }
+
     const authorId = await resolveAuthorId(client, req.user);
 
-    const title = (req.body.title || '').trim() || null;
-    const content = (req.body.content || '').trim() || null;
+    const titleInput = typeof req.body.title === 'string' ? req.body.title.trim() : '';
+    const contentInput = typeof req.body.content === 'string' ? req.body.content.trim() : '';
 
-    // status → ENUM post_status ('published' | 'unpublish')
-    const normalizedStatus =
-      req.body.status === 'published' ? 'published' : 'unpublish';
-    const publishedAt =
-      normalizedStatus === 'published' ? new Date() : null;
+    const title = titleInput !== '' ? titleInput : null;
+    const content = contentInput !== '' ? contentInput : null;
 
-    // category → map slug → ENUM post_category (ระวังตัวพิมพ์/ช่องว่าง)
+    const normalizedStatus = req.body.status === 'published' ? 'published' : 'unpublish';
+    const publishedAt = normalizedStatus === 'published' ? new Date() : null;
+
     const categoryMap = {
       '2d-art': '2D art',
       '3d-model': '3D model',
@@ -70,33 +147,52 @@ export const createPost = async (req, res) => {
       'game': 'Game',
       'ux-ui': 'UX/UI design'
     };
-    const categoryInput = (req.body.category || '').toLowerCase();
+
+    const categoryInput =
+      typeof req.body.category === 'string' ? req.body.category.toLowerCase() : '';
     const categoryEnum = categoryMap[categoryInput] || '2D art';
 
-    // group_id → UUID หรือ null
-    const groupId = (typeof req.body.group_id === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.group_id))
-      ? req.body.group_id
-      : null;
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const groupId =
+      typeof req.body.group_id === 'string' && uuidRegex.test(req.body.group_id)
+        ? req.body.group_id
+        : null;
 
-    // mediaFiles → array|json string
-    let mediaFiles = [];
-    if (Array.isArray(req.body.mediaFiles)) {
-      mediaFiles = req.body.mediaFiles;
-    } else if (typeof req.body.mediaFiles === 'string' && req.body.mediaFiles.trim() !== '') {
-      try { mediaFiles = JSON.parse(req.body.mediaFiles); } catch { mediaFiles = []; }
-    }
+    const bodyMediaInput = req.body.mediaFiles ?? req.body['mediaFiles[]'];
+    const metadataMedia = normalizeMediaMetadata(bodyMediaInput);
 
-    // (ถ้ามี S3 check) ตรวจ key มีอยู่จริงก่อนบันทึก
-    if (mediaFiles.length > 0) {
-      const checks = await Promise.all(mediaFiles.map((mf) => headObjectExists(mf.key)));
-      const missing = mediaFiles.filter((_, i) => !checks[i]).map((mf) => mf.key);
-      if (missing.length > 0) {
+    if (metadataMedia.length > 0) {
+      const existenceChecks = await Promise.all(
+        metadataMedia.map((mf) => headObjectExists(mf.key))
+      );
+      const missingKeys = metadataMedia
+        .filter((_, idx) => !existenceChecks[idx])
+        .map((mf) => mf.key);
+
+      if (missingKeys.length > 0) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ success: false, error: 'Some media files not found in S3', missingKeys: missing });
+        return res.status(400).json({
+          success: false,
+          error: 'Some media files were not found in S3',
+          missingKeys
+        });
       }
     }
 
-    // INSERT posts (cast ENUM ให้ชัดเจน)
+    const uploadedBatches = [];
+    if (req.files?.images) uploadedBatches.push(req.files.images);
+    if (req.files?.media) uploadedBatches.push(req.files.media);
+    if (req.files?.mediaFiles) uploadedBatches.push(req.files.mediaFiles);
+
+    const uploadedMedia = [];
+    for (const batch of uploadedBatches) {
+      const media = await uploadIncomingMedia(batch, req.user);
+      uploadedMedia.push(...media);
+    }
+
+    const combinedMedia = [...metadataMedia, ...uploadedMedia];
+
     const postResult = await client.query(
       `
       INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
@@ -107,97 +203,60 @@ export const createPost = async (req, res) => {
     );
     const postId = postResult.rows[0].post_id;
 
-    // INSERT post_media
-    if (mediaFiles.length > 0) {
-      for (let i = 0; i < mediaFiles.length; i++) {
-        const mf = mediaFiles[i];
-        const s3Key = mf.key;
+    if (combinedMedia.length > 0) {
+      for (let index = 0; index < combinedMedia.length; index++) {
+        const media = combinedMedia[index];
+        const s3Key = media.key;
         const s3Url = publicUrlForKey(s3Key);
         await client.query(
           `
-          INSERT INTO post_media
-          (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type)
+          INSERT INTO post_media (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           `,
           [
             postId,
-            mf.media_type || 'image',
-            mf.order_index ?? i,
+            media.media_type || 'image',
+            media.order_index ?? index,
             s3Key,
             s3Url,
-            mf.filename || null,
-            mf.fileSize || null,
-            mf.filetype || 'image/jpeg'
+            media.filename || null,
+            media.fileSize || null,
+            media.filetype || 'image/jpeg'
           ]
         );
       }
     }
 
     await client.query('COMMIT');
+
     return res.status(201).json({
       success: true,
       postId,
       status: normalizedStatus,
       publishedAt,
       category: categoryEnum,
-      mediaCount: mediaFiles.length,
+      mediaCount: combinedMedia.length,
       message: 'Post created successfully'
     });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error creating post:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    if (err.missingKeys) {
+      return res.status(400).json({
+        success: false,
+        error: 'Some media files were not uploaded to S3',
+        missingKeys: err.missingKeys
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create post',
+      details: err.message
+    });
   } finally {
     client.release();
   }
 };
-
-
-    // Insert post
-    const postResult = await client.query(
-      `INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING post_id`,
-      [authorId, title || null, content || null, normalizedStatus, publishedAt, category, groupId]
-    );
-    
-    const postId = postResult.rows[0].post_id;
-    
-    // Insert media records (if any)
-    if (parsedMediaFiles.length > 0) {
-      for (let idx = 0; idx < parsedMediaFiles.length; idx++) {
-        const mediaFile = parsedMediaFiles[idx];
-        const s3Key = mediaFile.key;
-    const s3Url = publicUrlForKey(s3Key);
-        await client.query(
-          `INSERT INTO post_media (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type) 
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            postId,
-            mediaFile.media_type || 'image',
-            mediaFile.order_index ?? idx,
-            s3Key,
-            s3Url,
-            mediaFile.filename || null,
-            mediaFile.fileSize || null,
-            mediaFile.filetype || 'image/jpeg',
-          ]
-        );
-      }
-    }
-    
-    await client.query('COMMIT');
-    
-    res.status(201).json({
-      success: true,
-      postId,
-      status: normalizedStatus,
-      publishedAt,
-      category,
-      mediaCount: parsedMediaFiles.length,
-      message: 'Post created successfully',
-    });
-
 export const deletePost = async (req, res) => {
   const client = await pool.connect();
   
@@ -276,4 +335,5 @@ export const getPresignedPutUrl = async (req, res) => {
     return res.status(500).json({ error: 'Failed to create presigned URL' });
   }
 };
+
 
