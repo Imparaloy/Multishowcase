@@ -64,15 +64,23 @@ export const getForYouPosts = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
-
+    // map media ให้เป็น array ของ S3 URL string
+    const feed = rows.map(row => {
+      let media = Array.isArray(row.media) ? row.media : [];
+      // ถ้า media เป็น array ของ object (เช่น { s3_url: ... }) ให้ map เป็น string
+      if (media.length && typeof media[0] === 'object' && media[0] !== null && media[0].s3_url) {
+        media = media.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
+      }
+      return { ...row, media };
+    });
     return res.render('home', {
       activeTab: 'foryou',
-      feed: rows,
+      feed,
       currentUser,
       activePage: 'home',
       page,
       limit,
-      hasMore: rows.length === limit
+      hasMore: feed.length === limit
     });
   } catch (err) {
     console.error('getForYouPosts error:', err);
@@ -91,15 +99,21 @@ export const getFollowingPosts = async (req, res) => {
 
     // TODO: ถ้ามีตาราง follows ให้เปลี่ยน WHERE ให้เหลือเฉพาะ author ที่ currentUser ติดตาม
     const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
-
+    const feed = rows.map(row => {
+      let media = Array.isArray(row.media) ? row.media : [];
+      if (media.length && typeof media[0] === 'object' && media[0] !== null && media[0].s3_url) {
+        media = media.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
+      }
+      return { ...row, media };
+    });
     return res.render('home', {
       activeTab: 'following',
-      feed: rows,
+      feed,
       currentUser,
       activePage: 'home',
       page,
       limit,
-      hasMore: rows.length === limit
+      hasMore: feed.length === limit
     });
   } catch (err) {
     console.error('getFollowingPosts error:', err);

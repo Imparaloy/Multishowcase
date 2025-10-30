@@ -114,9 +114,14 @@ async function fetchPostsForUser(client, userRecord) {
   );
 
   return rows.map((row) => {
-    const media = Array.isArray(row.media_urls)
+    // media_urls ควรเป็น array ของ string (S3 URL) ถ้าไม่ ให้ map เป็น string
+    let media = Array.isArray(row.media_urls)
       ? row.media_urls.filter(Boolean)
       : [];
+    // ถ้า media เป็น array ของ object (เช่น { s3_url: ... }) ให้ map เป็น string
+    if (media.length && typeof media[0] === 'object' && media[0] !== null && media[0].s3_url) {
+      media = media.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
+    }
     const primaryMedia = media.length ? media[0] : null;
     const body = row.body || "";
 

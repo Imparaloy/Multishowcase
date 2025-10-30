@@ -55,7 +55,11 @@ function extractMediaUrls(rawMedia) {
 }
 
 function formatPostRow(row) {
-  const mediaUrls = extractMediaUrls(row.media);
+  let mediaUrls = extractMediaUrls(row.media);
+  // ถ้า mediaUrls เป็น array ของ object (เช่น { s3_url: ... }) ให้ map เป็น string
+  if (mediaUrls.length && typeof mediaUrls[0] === 'object' && mediaUrls[0] !== null && mediaUrls[0].s3_url) {
+    mediaUrls = mediaUrls.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
+  }
   return {
     id: row.post_id,
     post_id: row.post_id,
