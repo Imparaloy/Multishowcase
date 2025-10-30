@@ -1,7 +1,7 @@
 // home.routes.js
 import { Router } from 'express';
 import { getForYouPosts, getFollowingPosts } from '../controllers/home.controller.js';
-import { authenticateCognitoJWT, requireAuth } from '../middleware/auth.js';
+import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate.js';
 
 const router = Router();
 
