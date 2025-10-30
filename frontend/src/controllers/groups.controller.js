@@ -1,6 +1,164 @@
 import pool from '../config/dbconn.js';
 import TAG_LIST from '../data/tags.js';
 import { getUnifiedFeed } from './feed.controller.js';
+import { createPost as createStandalonePost } from './posts.controller.js';
+
+const BASE_GROUP_SELECT = `
+  SELECT
+    g.group_id,
+    g.name,
+    g.description,
+    g.owner_id,
+    g.created_at,
+    g.updated_at,
+    u.username        AS owner_username,
+    COALESCE(u.display_name, u.username) AS owner_display_name,
+    COALESCE(
+      json_agg(
+        jsonb_build_object(
+          'user_id',     gm.user_id,
+          'username',    member.username,
+          'display_name',COALESCE(member.display_name, member.username),
+          'joined_at',   gm.created_at
+        )
+        ORDER BY gm.created_at
+      ) FILTER (WHERE gm.user_id IS NOT NULL),
+      '[]'
+    ) AS members,
+    COUNT(gm.user_id) FILTER (WHERE gm.user_id IS NOT NULL) AS member_count
+  FROM groups g
+  JOIN users u ON u.user_id = g.owner_id
+  LEFT JOIN group_members gm ON gm.group_id = g.group_id
+  LEFT JOIN users member ON member.user_id = gm.user_id
+`;
+
+function parseJsonArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function fallbackEmailFromSub(sub) {
+  if (!sub) return 'user@multishowcase.local';
+  return `user-${sub}@multishowcase.local`;
+}
+
+async function ensureUserRecordFromClaims(claims = {}) {
+  if (!claims?.sub) return null;
+
+  const payload = claims.payload || {};
+
+  const username =
+    claims.username ||
+    claims['cognito:username'] ||
+    payload['cognito:username'] ||
+    payload.username ||
+    claims.email?.split('@')[0] ||
+    `user_${claims.sub.slice(0, 8)}`;
+
+  const displayName =
+    claims.name ||
+    payload.name ||
+    payload['custom:display_name'] ||
+    username;
+
+  const email =
+    claims.email ||
+    payload.email ||
+    fallbackEmailFromSub(claims.sub);
+
+  const { rows } = await pool.query(
+    `INSERT INTO users (cognito_sub, username, display_name, email)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (cognito_sub) DO UPDATE
+       SET username = EXCLUDED.username,
+           display_name = EXCLUDED.display_name,
+           email = EXCLUDED.email,
+           updated_at = NOW()
+     RETURNING *`,
+    [claims.sub, username, displayName, email]
+  );
+
+  return rows[0] || null;
+}
+
+function formatGroupRow(row) {
+  const membersRaw = parseJsonArray(row.members);
+  const members = membersRaw
+    .map((member) => {
+      const userId = member?.user_id || null;
+      const username = member?.username || null;
+      const displayName = member?.display_name || member?.displayName || username;
+
+      if (!userId && !username) return null;
+
+      return {
+        user_id: userId,
+        username,
+        displayName,
+        display_name: displayName,
+        joined_at: member?.joined_at || null,
+        role: userId && row.owner_id && userId === row.owner_id ? 'owner' : 'member'
+      };
+    })
+    .filter(Boolean);
+
+  const ownerExists = members.some((member) => member.user_id === row.owner_id);
+  if (!ownerExists) {
+    const ownerDisplayName = row.owner_display_name || row.owner_username;
+    members.unshift({
+      user_id: row.owner_id,
+      username: row.owner_username,
+      displayName: ownerDisplayName,
+      display_name: ownerDisplayName,
+      joined_at: row.created_at,
+      role: 'owner'
+    });
+  }
+
+  return {
+    id: row.group_id,
+    group_id: row.group_id,
+    name: row.name,
+    description: row.description || '',
+    ownerId: row.owner_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    createdBy: row.owner_username,
+    ownerDisplayName: row.owner_display_name,
+    members,
+    memberCount: members.length,
+    tags: []
+  };
+}
+
+async function fetchGroups({ groupId } = {}) {
+  const values = [];
+  let whereClause = '';
+
+  if (groupId) {
+    values.push(groupId);
+    whereClause = `WHERE g.group_id = $${values.length}`;
+  }
+
+  const query = `
+    ${BASE_GROUP_SELECT}
+    ${whereClause}
+    GROUP BY g.group_id, g.name, g.description, g.owner_id, g.created_at, g.updated_at, u.user_id, u.username, u.display_name
+    ORDER BY g.created_at DESC
+  `;
+
+  const { rows } = await pool.query(query, values);
+  return rows.map(formatGroupRow);
+}
 
 async function loadCurrentUser(req) {
   const claims = req.user || {};
@@ -18,8 +176,18 @@ async function loadCurrentUser(req) {
     record = rows[0] || null;
   }
 
+  if (!record && claims.sub) {
+    try {
+      record = await ensureUserRecordFromClaims(claims);
+    } catch (err) {
+      console.error('Failed to upsert user from claims:', err);
+    }
+  }
+
   if (record) {
-    return { ...record, groups: claims.groups || [] };
+    const payload = claims.payload || {};
+    const groups = claims.groups || payload['cognito:groups'] || [];
+    return { ...record, groups };
   }
 
   return null;
@@ -29,14 +197,7 @@ async function loadCurrentUser(req) {
 export async function renderGroupsPage(req, res) {
   try {
     const currentUser = await loadCurrentUser(req);
-
-    const groupsRes = await pool.query(`
-      SELECT g.*, u.display_name AS owner_name
-      FROM groups g
-      JOIN users u ON g.owner_id = u.user_id
-      ORDER BY g.created_at DESC
-    `);
-    const groups = groupsRes.rows;
+    const groups = await fetchGroups();
 
     return res.render('groups', {
       title: 'Groups',
@@ -65,12 +226,50 @@ export async function createGroup(req, res) {
     }
     const groupRes = await pool.query(
       'INSERT INTO groups (name, description, owner_id) VALUES ($1, $2, $3) RETURNING *',
-      [name, description, owner_id]
+      [name.trim(), description || null, owner_id]
     );
     const group = groupRes.rows[0];
+
+    let formattedGroup = null;
+    if (group) {
+      await pool.query(
+        `INSERT INTO group_members (group_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (group_id, user_id) DO NOTHING`,
+        [group.group_id, owner_id]
+      );
+
+      const fetched = await fetchGroups({ groupId: group.group_id });
+      formattedGroup = fetched[0] || null;
+    }
+
     const accept = req.headers['accept'] || '';
+    const responseGroup = formattedGroup || {
+      id: group.group_id,
+      group_id: group.group_id,
+      name: group.name,
+      description: group.description || '',
+      ownerId: owner_id,
+      createdAt: group.created_at,
+      updatedAt: group.updated_at,
+      createdBy: currentUser?.username || null,
+      ownerDisplayName: currentUser?.display_name || currentUser?.username || null,
+      members: [
+        {
+          user_id: owner_id,
+          username: currentUser?.username || null,
+          displayName: currentUser?.display_name || currentUser?.username || null,
+          display_name: currentUser?.display_name || currentUser?.username || null,
+          joined_at: group.created_at,
+          role: 'owner'
+        }
+      ],
+      memberCount: 1,
+      tags: []
+    };
+
     if (accept.includes('application/json') || req.xhr) {
-      return res.status(201).json({ ok: true, group });
+      return res.status(201).json({ ok: true, group: responseGroup });
     }
     return res.redirect('/groups');
   } catch (e) {
@@ -85,21 +284,14 @@ export async function renderGroupDetailsPage(req, res) {
     const { id } = req.params;
     const currentUser = await loadCurrentUser(req);
 
-    const groupRes = await pool.query(
-      `SELECT g.*, u.display_name AS owner_name FROM groups g JOIN users u ON g.owner_id = u.user_id WHERE g.group_id = $1`,
-      [id]
-    );
-    const group = groupRes.rows[0];
+    const [group] = await fetchGroups({ groupId: id });
     if (!group) {
       return res.status(404).send('ไม่พบกลุ่ม');
     }
-    const isOwner = currentUser ? group.owner_id === currentUser.user_id : false;
-    const membersRes = await pool.query(
-      `SELECT gm.*, u.username, u.display_name FROM group_members gm JOIN users u ON gm.user_id = u.user_id WHERE gm.group_id = $1`,
-      [id]
-    );
-    const members = membersRes.rows;
-    const isMember = currentUser ? members.some(m => m.user_id === currentUser.user_id) : false;
+
+    const isOwner = currentUser ? group.ownerId === currentUser.user_id : false;
+    const members = Array.isArray(group.members) ? group.members : [];
+    const isMember = currentUser ? members.some((m) => m.user_id === currentUser.user_id) : false;
 
     const posts = await getUnifiedFeed({ groupId: id });
 
@@ -146,9 +338,20 @@ export async function leaveGroupHandler(req, res) {
     const { id } = req.params;
     const currentUser = await loadCurrentUser(req);
     const user_id = currentUser?.user_id;
-    if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
-    const result = await pool.query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
-    if (result.rowCount === 0) return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่มหรือคุณไม่ได้เป็นสมาชิก' });
+
+    if (!user_id) {
+      return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+
+    const result = await pool.query(
+      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, user_id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่มหรือคุณไม่ได้เป็นสมาชิก' });
+    }
+
     return res.json({ ok: true, message: 'ออกจากกลุ่มเรียบร้อย' });
   } catch (e) {
     console.error('Failed to leave group:', e);
@@ -162,11 +365,24 @@ export async function deleteGroupHandler(req, res) {
     const { id } = req.params;
     const currentUser = await loadCurrentUser(req);
     const user_id = currentUser?.user_id;
-    const groupRes = await pool.query('SELECT * FROM groups WHERE group_id = $1', [id]);
-    const group = groupRes.rows[0];
-    if (!group) return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
-    if (group.owner_id !== user_id) return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบกลุ่มนี้' });
+
+    if (!user_id) {
+      return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM groups WHERE group_id = $1', [id]);
+    const group = rows[0];
+
+    if (!group) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+    }
+
+    if (group.owner_id !== user_id) {
+      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบกลุ่มนี้' });
+    }
+
     await pool.query('DELETE FROM groups WHERE group_id = $1', [id]);
+
     return res.json({ ok: true, message: 'ลบกลุ่มเรียบร้อย' });
   } catch (e) {
     console.error('Failed to delete group:', e);
@@ -176,22 +392,35 @@ export async function deleteGroupHandler(req, res) {
 
 // สร้างโพสต์ในกลุ่ม
 export async function createGroupPost(req, res) {
+  const { id } = req.params;
+
   try {
-    const { id } = req.params; // group_id
-    const { title, body, category } = req.body;
     const currentUser = await loadCurrentUser(req);
     const author_id = currentUser?.user_id;
-    if (!author_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
-    const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, author_id]);
-    if (check.rowCount === 0) return res.status(403).json({ ok: false, message: 'คุณไม่ได้เป็นสมาชิกกลุ่มนี้' });
-    const postRes = await pool.query(
-      'INSERT INTO posts (author_id, title, body, category, group_id, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [author_id, title, body, category, id, 'published']
-    );
-    return res.json({ ok: true, post: postRes.rows[0] });
+
+    if (!author_id) {
+      return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
+    }
+
+    const [group] = await fetchGroups({ groupId: id });
+    if (!group) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+    }
+
+    const isOwner = group.ownerId === author_id;
+    const isMember = group.members?.some((member) => member.user_id === author_id) || false;
+
+    if (!isOwner && !isMember) {
+      return res.status(403).json({ ok: false, message: 'คุณไม่ได้เป็นสมาชิกกลุ่มนี้' });
+    }
+
+    req.body = { ...req.body, group_id: id };
+
+    return await createStandalonePost(req, res);
   } catch (e) {
-    console.error('Failed to create post:', e);
+    console.error('Failed to create post in group:', e);
     return res.status(500).json({ ok: false, message: 'ไม่สามารถสร้างโพสต์ได้' });
   }
 }
+
 
