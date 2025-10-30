@@ -224,21 +224,25 @@
         });
       };
 
-      const tagIcon = toggleBtn ? toggleBtn.querySelector('[data-feather]') : null;
+      const resolveTagIcon = () => {
+        if (!toggleBtn) return null;
+        return toggleBtn.querySelector('[data-feather]');
+      };
 
       const updateToggleState = () => {
         const hasSelected = Boolean(selectedCategory);
         const isOpen = tagPicker && !tagPicker.classList.contains('hidden');
         const active = hasSelected || isOpen;
         if (!toggleBtn) return;
+        const iconEl = resolveTagIcon();
         if (active) {
           toggleBtn.classList.remove('text-gray-400');
           toggleBtn.classList.add('text-pink-400');
-          if (tagIcon) tagIcon.classList.add('text-pink-400');
+          if (iconEl) iconEl.classList.add('text-pink-400');
         } else {
           toggleBtn.classList.remove('text-pink-400');
           toggleBtn.classList.add('text-gray-400');
-          if (tagIcon) tagIcon.classList.remove('text-pink-400');
+          if (iconEl) iconEl.classList.remove('text-pink-400');
         }
       };
 
@@ -252,6 +256,10 @@
       renderPreviews();
       renderTags();
       updateToggleState();
+      if (window.feather && typeof window.feather.replace === 'function') {
+        window.feather.replace();
+        updateToggleState();
+      }
     })();
   </script>
 </div>
