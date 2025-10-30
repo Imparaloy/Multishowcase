@@ -3,9 +3,7 @@ import pool from '../config/dbconn.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3, BUCKET } from '../services/aws.js';
+import { headObjectExists, publicUrlForKey, getPresignedPutUrl as s3PresignPut, BUCKET } from '../services/s3.service.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,8 +45,8 @@ export const createPost = async (req, res) => {
     const authorId = await resolveAuthorId(client, req.user).catch((err) => {
       throw Object.assign(new Error('Unauthorized: Unable to resolve user'), { cause: err });
     });
-    
-    const { content, mediaFiles } = req.body; // mediaFiles จะมี array ของ { key, filename, filetype }
+    // Parse and validate inputs
+    const { title, content, status, category: categoryInput, group_id, mediaFiles } = req.body; // mediaFiles: array of { key, filename, filetype, fileSize }
     const tags = req.body.tags ? req.body.tags.split(',') : [];
     
     const categoryMap = {
@@ -60,48 +58,80 @@ export const createPost = async (req, res) => {
       'ux-ui': 'UX/UI design'
     };
 
-    const category = tags.length > 0 ? categoryMap[tags[0]] : '2D art';
+    // Determine category
+    let category = '2D art';
+    if (categoryInput && categoryMap[categoryInput]) {
+      category = categoryMap[categoryInput];
+    } else if (tags.length > 0 && categoryMap[tags[0]]) {
+      category = categoryMap[tags[0]];
+    }
 
+    // Validate status and published_at
+    const normalizedStatus = (status === 'published' || status === 'unpublish') ? status : 'unpublish';
+    const publishedAt = normalizedStatus === 'published' ? new Date() : null;
+
+    // Validate group_id (UUID) or set null
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const groupId = typeof group_id === 'string' && uuidRegex.test(group_id) ? group_id : null;
+
+    // If media files provided, verify they exist in S3 first
+    let parsedMediaFiles = [];
+    if (mediaFiles && mediaFiles.length > 0) {
+      const raw = typeof mediaFiles === 'string' ? JSON.parse(mediaFiles) : mediaFiles;
+      parsedMediaFiles = Array.isArray(raw) ? raw : [raw];
+
+      // Determine username for default key construction
+      const claims = req.user || {};
+      const targetUsername = claims.username || claims['cognito:username'] || claims.email || claims.sub || 'anonymous';
+
+      // Ensure each item has a key; if not, synthesize one to match presign pattern
+      parsedMediaFiles = parsedMediaFiles.map((mf) => ({
+        ...mf,
+        key: mf.key || `users/${targetUsername}/uploads/${Date.now()}_${path.basename(mf.filename || 'file')}`,
+      }));
+
+      // Verify S3 objects exist
+      const checks = await Promise.all(
+        parsedMediaFiles.map((mf) => headObjectExists(mf.key))
+      );
+      const missing = parsedMediaFiles
+        .filter((_, i) => !checks[i])
+        .map((mf) => mf.key);
+
+      if (missing.length > 0) {
+        // Fail fast and rollback
+        throw Object.assign(new Error('Some media files not found in S3'), { missingKeys: missing });
+      }
+    }
+
+    // Insert post
     const postResult = await client.query(
-      'INSERT INTO posts (author_id, body, category, status) VALUES ($1, $2, $3, $4) RETURNING post_id',
-      [authorId, content, category, 'published']
+      `INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING post_id`,
+      [authorId, title || null, content || null, normalizedStatus, publishedAt, category, groupId]
     );
     
     const postId = postResult.rows[0].post_id;
     
-    // เก็บข้อมูล media files ที่อัปโหลดไปยัง S3 แล้ว
-    if (mediaFiles && mediaFiles.length > 0) {
-      const parsedMediaFiles = typeof mediaFiles === 'string' ? JSON.parse(mediaFiles) : mediaFiles;
-      const fileArray = Array.isArray(parsedMediaFiles) ? parsedMediaFiles : [parsedMediaFiles];
-      
-      // ดึง username สำหรับการสร้าง S3 key
-      const claims = req.user || {};
-      const targetUsername = 
-        claims.username ||
-        claims['cognito:username'] ||
-        claims.email ||
-        claims.sub ||
-        'anonymous';
-      
-      for (let idx = 0; idx < fileArray.length; idx++) {
-        const mediaFile = fileArray[idx];
-        
-        // สร้าง S3 key ที่ตรงกับ pattern ใน getPresignedPutUrl
-        const s3Key = mediaFile.key || `users/${targetUsername}/uploads/${Date.now()}_${path.basename(mediaFile.filename)}`;
-        const s3Url = `https://${BUCKET}.s3.amazonaws.com/${s3Key}`;
-        
+    // Insert media records (if any)
+    if (parsedMediaFiles.length > 0) {
+      for (let idx = 0; idx < parsedMediaFiles.length; idx++) {
+        const mediaFile = parsedMediaFiles[idx];
+        const s3Key = mediaFile.key;
+  const s3Url = publicUrlForKey(s3Key);
         await client.query(
           `INSERT INTO post_media (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
           [
-            postId, 
-            'image', 
-            idx, 
-            s3Key, 
-            s3Url, 
-            mediaFile.filename,
+            postId,
+            mediaFile.media_type || 'image',
+            mediaFile.order_index ?? idx,
+            s3Key,
+            s3Url,
+            mediaFile.filename || null,
             mediaFile.fileSize || null,
-            mediaFile.filetype || 'image/jpeg'
+            mediaFile.filetype || 'image/jpeg',
           ]
         );
       }
@@ -112,12 +142,23 @@ export const createPost = async (req, res) => {
     res.status(201).json({
       success: true,
       postId,
-      message: 'Post created successfully'
+      status: normalizedStatus,
+      publishedAt,
+      category,
+      mediaCount: parsedMediaFiles.length,
+      message: 'Post created successfully',
     });
     
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Error creating post:', err);
+    if (err.missingKeys) {
+      return res.status(400).json({
+        success: false,
+        error: 'Some media files were not uploaded to S3',
+        missingKeys: err.missingKeys,
+      });
+    }
     res.status(500).json({ 
       success: false, 
       error: 'Failed to create post',
@@ -198,14 +239,8 @@ export const getPresignedPutUrl = async (req, res) => {
   console.log('Presign upload for user:', targetUsername);
   const key = `users/${targetUsername}/uploads/${Date.now()}_${path.basename(filename)}`;
 
-  const command = new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
-    ContentType: filetype,
-  });
-
   try {
-    const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 60 * 5 });
+    const uploadUrl = await s3PresignPut({ key, contentType: filetype, expiresIn: 60 * 5 });
     return res.json({ uploadUrl, key });
   } catch (err) {
     console.error('Failed to create presigned URL:', err);

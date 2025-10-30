@@ -1,10 +1,10 @@
 // src/services/aws/s3.service.js
-import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const client = new S3Client({ region: process.env.AWS_REGION });
 
-const BUCKET = process.env.S3_BUCKET_NAME;
+export const BUCKET = process.env.S3_BUCKET_NAME;
 
 export async function getPresignedPutUrl({ key, contentType, expiresIn = 300 }) {
   const cmd = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType });
@@ -25,4 +25,20 @@ export async function objectsToSignedGet(objects, expiresIn = 300) {
       return { id: i, key: obj.Key, url };
     })
   );
+}
+
+// Check if an object exists in S3 (returns boolean)
+export async function headObjectExists(key) {
+  try {
+    const cmd = new HeadObjectCommand({ Bucket: BUCKET, Key: key });
+    await client.send(cmd);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// Build a public URL for a given key (virtual-hosted–style)
+export function publicUrlForKey(key) {
+  return `https://${BUCKET}.s3.amazonaws.com/${key}`;
 }
