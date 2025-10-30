@@ -111,13 +111,14 @@ export const getExploreFeed = async (req, res) => {
     const rendered = await Promise.all(
       posts.map((post) =>
         renderPostPartial(req, {
-          id: post.id,
-          name: post.author_display_name,
-          username: post.author_username,
-          body: post.body,
-          media: post.media,
-          comments: post.comments,
-          likes: post.likes,
+          id: post.post_id || post.id,
+          name: post.author_display_name || post.name,
+          username: post.author_username || post.username,
+          body: post.body || post.content || '',
+          media: Array.isArray(post.media) ? post.media : [],
+          primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
+          comments: Number(post.comments ?? 0),
+          likes: Number(post.likes ?? 0),
           currentUser: res.locals.user || null
         })
       )

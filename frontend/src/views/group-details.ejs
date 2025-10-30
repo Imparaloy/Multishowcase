@@ -204,17 +204,19 @@
 								<% } else { %>
 									<% posts.forEach(post => { %>
 										<%
-										// Check if current user can delete this post
-										const canDeletePost = (isOwner || (post.author === currentUser?.username));
+											// Check if current user can delete this post
+											const canDeletePost = isOwner || ((post.author_username || post.username) === currentUser?.username);
 										%>
 										<div data-post-id="<%= post.id %>">
 											<%- include('components/post', {
-												id: post.id,
-												name: post.author,
-												username: post.author,
-												content: post.content,
-												likes: post.likes || 0,
-												comments: post.comments || 0,
+												id: post.post_id || post.id,
+												name: post.author_display_name || post.name || post.author_username,
+												username: post.author_username || post.username,
+												content: post.body || post.content || '',
+												media: Array.isArray(post.media) ? post.media : [],
+												primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
+												likes: Number(post.likes ?? 0),
+												comments: Number(post.comments ?? 0),
 												currentUser: typeof currentUser !== 'undefined' ? currentUser : null,
 												canDelete: canDeletePost
 											}) %>

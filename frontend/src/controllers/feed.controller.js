@@ -137,54 +137,59 @@ export const getUnifiedFeed = async (options = {}) => {
       u.user_id       AS author_id,
       u.username      AS author_username,
       COALESCE(u.display_name, u.username) AS author_display_name,
-      COALESCE(
-        json_agg(
-          jsonb_build_object(
-            'media_id',     pm.post_media_id,
-            'media_type',   pm.media_type,
-            'order_index',  pm.order_index,
-            's3_key',       pm.s3_key,
-            's3_url',       pm.s3_url,
-            'filename',     pm.original_filename,
-            'file_size',    pm.file_size,
-            'content_type', pm.content_type
-          )
-          ORDER BY pm.order_index NULLS LAST
-        ) FILTER (WHERE pm.post_media_id IS NOT NULL),
-        '[]'
-      ) AS media,
+      COALESCE(media.media, '[]'::json)      AS media,
       COALESCE(c.comments_count, 0)         AS comments_count,
       COALESCE(l.likes_count, 0)            AS likes_count
     FROM posts p
     JOIN users u ON u.user_id = p.author_id
-    LEFT JOIN post_media pm ON pm.post_id = p.post_id
     LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS comments_count
+      SELECT json_agg(
+               jsonb_build_object(
+                 'media_id',     pm.post_media_id,
+                 'media_type',   pm.media_type,
+                 'order_index',  pm.order_index,
+                 's3_key',       pm.s3_key,
+                 's3_url',       pm.s3_url,
+                 'filename',     pm.original_filename,
+                 'file_size',    pm.file_size,
+                 'content_type', pm.content_type
+               ) ORDER BY pm.order_index NULLS LAST
+             ) FILTER (WHERE pm.post_media_id IS NOT NULL) AS media
+      FROM post_media pm
+      WHERE pm.post_id = p.post_id
+    ) media ON true
+    LEFT JOIN LATERAL (
+      SELECT COUNT(*)::int AS comments_count
       FROM comments c
       WHERE c.post_id = p.post_id
     ) c ON true
     LEFT JOIN LATERAL (
-      SELECT COUNT(*) AS likes_count
+      SELECT COUNT(*)::int AS likes_count
       FROM likes l
       WHERE l.post_id = p.post_id
     ) l ON true
     WHERE ${conditions.join(' AND ')}
-    GROUP BY
-      p.post_id, p.title, p.body, p.category, p.status, p.published_at, p.created_at,
-      u.user_id, u.username, u.display_name
     ORDER BY COALESCE(p.published_at, p.created_at) DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
 
   const { rows } = await pool.query(query, values);
-  
-  return rows.map(row => {
+
+  return rows.map((row) => {
     const media = extractMediaUrls(row.media);
+    const primaryMedia = media.length ? media[0] : null;
+    const body = row.body || '';
+
     return {
       ...row,
+      id: row.post_id,
+      post_id: row.post_id,
+      body,
+      content: body,
       media,
-      comments: Number(row.comments_count) || 0,
-      likes: Number(row.likes_count) || 0
+      primaryMedia,
+      comments: Number(row.comments_count ?? 0),
+      likes: Number(row.likes_count ?? 0)
     };
   });
 };

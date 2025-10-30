@@ -77,9 +77,9 @@
                   username: post.author_username || post.username,
                   body: post.body || post.content || '',
                   media: Array.isArray(post.media) ? post.media : [],
-                  comments: post.comments || 0,
-                  likes: post.likes || 0,
-                  primaryMedia: null,
+                  comments: Number(post.comments ?? 0),
+                  likes: Number(post.likes ?? 0),
+                  primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
                   currentUser: typeof currentUser !== 'undefined' ? currentUser : null
                 }) %>
               </div>
