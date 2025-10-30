@@ -14,7 +14,10 @@
         <% const currentTag = typeof activeTag !== 'undefined' ? activeTag : 'all'; %>
         <% const currentSearch = typeof searchQuery !== 'undefined' ? searchQuery : ''; %>
         <% const currentSearchEncoded = typeof searchQueryEncoded !== 'undefined' ? searchQueryEncoded : ''; %>
-        <% const tagList = Array.isArray(exploreTags) ? exploreTags : []; %>
+        <% const tagListSafe = Array.isArray(tagList) ? tagList : []; %>
+        <% const hasMoreFeed = typeof hasMore === 'boolean' ? hasMore : false; %>
+        <% const currentPage = typeof page === 'number' ? page : 1; %>
+        <% const currentLimit = typeof limit === 'number' ? limit : 10; %>
         <!-- Search aligned to the left of the content area -->
         <div class="px-4 pt-4 mt-4">
           <div class="w-full flex items-center">
@@ -40,8 +43,8 @@
         </div>
         <!-- Tabs -->
         <div class="flex px-4 mt-4 border-b border-gray-700 overflow-x-auto space-x-2">
-          <% if (tagList && tagList.length) { %>
-            <% tagList.forEach(function(tagItem) {
+          <% if (tagListSafe && tagListSafe.length) { %>
+            <% tagListSafe.forEach(function(tagItem) {
                  const isActive = currentTag === tagItem.slug;
                  const querySuffix = currentSearchEncoded ? `&q=${currentSearchEncoded}` : "";
             %>
@@ -56,7 +59,15 @@
           <% } %>
         </div>
         <!-- Feed Posts -->
-        <div class="p-4 space-y-4">
+        <div
+          id="explore-feed"
+          class="p-4 space-y-4"
+          data-tag="<%= currentTag %>"
+          data-search="<%= currentSearchEncoded %>"
+          data-next-page="<%= hasMoreFeed ? currentPage + 1 : currentPage %>"
+          data-has-more="<%= hasMoreFeed ? 'true' : 'false' %>"
+          data-limit="<%= currentLimit %>"
+        >
           <% if (feed && feed.length) { %>
             <% feed.forEach(post => { %>
               <div data-post-id="<%= post.post_id || post.id %>">
@@ -65,22 +76,108 @@
                   name: post.author_display_name || post.name || post.display_name,
                   username: post.author_username || post.username,
                   body: post.body || post.content || '',
-                  media: Array.isArray(post.media) ? post.media.map(m => (m && m.s3_url) ? m.s3_url : null).filter(Boolean) : [],
+                  media: Array.isArray(post.media) ? post.media : [],
                   comments: post.comments || 0,
                   likes: post.likes || 0,
                   primaryMedia: null,
-                  canDelete: false
+                  canDelete: false,
+                  currentUser: typeof currentUser !== 'undefined' ? currentUser : null
                 }) %>
               </div>
             <% }) %>
           <% } else { %>
             <p class="text-center text-gray-400 py-6">No posts found for this filter.</p>
           <% } %>
+          <div id="feed-loader" class="py-4 text-center text-gray-400 hidden">
+            Loading more posts...
+          </div>
+          <div id="feed-sentinel" class="h-4"></div>
         </div>
       </main>
     </div>
     <script>
       feather.replace();
+      (function() {
+        const feedEl = document.getElementById('explore-feed');
+        if (!feedEl) return;
+        const loaderEl = document.getElementById('feed-loader');
+        const sentinelEl = document.getElementById('feed-sentinel');
+
+        let isLoading = false;
+        let hasMore = feedEl.dataset.hasMore === 'true';
+        let nextPage = Number(feedEl.dataset.nextPage || '2');
+        const limit = Number(feedEl.dataset.limit || '10');
+        const tag = feedEl.dataset.tag || 'all';
+        const searchParam = feedEl.dataset.search ? decodeURIComponent(feedEl.dataset.search) : '';
+
+        const toggleLoader = (show) => {
+          if (!loaderEl) return;
+          loaderEl.classList.toggle('hidden', !show);
+        };
+
+        const appendPosts = (items) => {
+          if (!Array.isArray(items) || !items.length) return;
+          items.forEach((html) => {
+            if (!html) return;
+            const temp = document.createElement('div');
+            temp.innerHTML = html.trim();
+            while (temp.firstChild) {
+              feedEl.insertBefore(temp.firstChild, loaderEl);
+            }
+          });
+          if (window.feather && typeof window.feather.replace === 'function') {
+            window.feather.replace();
+          }
+        };
+
+        const loadMore = async () => {
+          if (isLoading || !hasMore) return;
+          isLoading = true;
+          toggleLoader(true);
+
+          try {
+            const params = new URLSearchParams();
+            params.set('tag', tag);
+            params.set('page', String(nextPage));
+            params.set('limit', String(limit));
+            if (searchParam) params.set('q', searchParam);
+
+            const response = await fetch(`/explore/feed?${params.toString()}`, {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) throw new Error('Failed to fetch posts');
+            const data = await response.json();
+            if (!data || !Array.isArray(data.items)) throw new Error('Invalid response format');
+
+            appendPosts(data.items);
+            hasMore = Boolean(data.hasMore);
+            feedEl.dataset.hasMore = hasMore ? 'true' : 'false';
+            if (hasMore && typeof data.nextPage === 'number') {
+              nextPage = data.nextPage;
+              feedEl.dataset.nextPage = String(nextPage);
+            } else if (!hasMore && observer) {
+              observer.disconnect();
+            }
+          } catch (err) {
+            console.error('Failed to load more posts:', err);
+          } finally {
+            isLoading = false;
+            toggleLoader(false);
+          }
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              loadMore();
+            }
+          });
+        }, { rootMargin: '200px' });
+
+        if (hasMore && sentinelEl) {
+          observer.observe(sentinelEl);
+        }
+      })();
     </script>
   </body>
 </html>
