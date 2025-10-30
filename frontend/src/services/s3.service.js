@@ -1,4 +1,6 @@
 // src/services/aws/s3.service.js
+import dotenv from "dotenv";
+dotenv.config();
 import { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -11,12 +13,6 @@ export async function getPresignedPutUrl({ key, contentType, expiresIn = 300 }) 
   return getSignedUrl(client, cmd, { expiresIn });
 }
 
-export async function list(prefix) {
-  const cmd = new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix });
-  const res = await client.send(cmd);
-  return res.Contents || [];
-}
-
 export async function objectsToSignedGet(objects, expiresIn = 300) {
   return Promise.all(
     (objects || []).map(async (obj, i) => {
@@ -27,7 +23,7 @@ export async function objectsToSignedGet(objects, expiresIn = 300) {
   );
 }
 
-// Upload raw data to S3
+// Upload raw data directly to S3 and return the public URL
 export async function uploadObject({ key, body, contentType }) {
   const cmd = new PutObjectCommand({
     Bucket: BUCKET,
