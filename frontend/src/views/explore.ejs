@@ -12,44 +12,19 @@
       <%- include('components/sidebar') %>
   <main class="flex-1 border-x p-2 rounded border-gray-700">
         <% const currentTag = typeof activeTag !== 'undefined' ? activeTag : 'all'; %>
-        <% const currentSearch = typeof searchQuery !== 'undefined' ? searchQuery : ''; %>
-        <% const currentSearchEncoded = typeof searchQueryEncoded !== 'undefined' ? searchQueryEncoded : ''; %>
         <% const tagListSafe = Array.isArray(tagList) ? tagList : []; %>
-        <% const hasMoreFeed = typeof hasMore === 'boolean' ? hasMore : false; %>
-        <% const currentPage = typeof page === 'number' ? page : 1; %>
-        <% const currentLimit = typeof limit === 'number' ? limit : 10; %>
-        <!-- Search aligned to the left of the content area -->
-        <div class="px-4 pt-4 mt-4">
-          <div class="w-full flex items-center">
-            <!-- Left-aligned search form -->
-            <div class="flex-1 max-w-3xl">
-              <form method="get" action="/explore" class="flex items-center w-full bg-transparent border-2 border-gray-600 rounded-2xl px-4 py-2">
-                <i data-feather="search" class="text-white mr-3" style="width:22px;height:22px;"></i>
-                <input type="hidden" name="tag" value="<%= currentTag %>" />
-                <input
-                  type="text"
-                  name="q"
-                  value="<%= currentSearch %>"
-                  placeholder="Search"
-                  class="flex-1 bg-transparent outline-none text-white placeholder-white text-base font-medium"
-                  autocomplete="off"
-                />
-              </form>
-            </div>
-
-            <!-- spacer to keep layout balanced -->
-            <div class="flex-1"></div>
-          </div>
+        <div class="px-4 pt-6">
+          <h1 class="text-2xl font-semibold">Explore Posts</h1>
+          <p class="text-sm text-gray-400 mt-2">Browse all posts or focus on a specific category.</p>
         </div>
-        <!-- Tabs -->
         <div class="flex px-4 mt-4 border-b border-gray-700 overflow-x-auto space-x-2">
           <% if (tagListSafe && tagListSafe.length) { %>
             <% tagListSafe.forEach(function(tagItem) {
                  const isActive = currentTag === tagItem.slug;
-                 const querySuffix = currentSearchEncoded ? `&q=${currentSearchEncoded}` : "";
             %>
               <a
-                href="/explore?tag=<%= tagItem.slug %><%- querySuffix %>"
+                href="/explore?tag=<%= tagItem.slug %>"
+                data-explore-tag="<%= tagItem.slug %>"
                 class="py-3 px-4 text-center border-b-2 -mb-px transition <%= isActive ? 'border-purple-400 text-white-500 font-semibold' : 'border-transparent text-gray-400 hover:text-white hover:border-purple-400' %>"
                 <%= isActive ? 'aria-current="page"' : '' %>
               >
@@ -63,14 +38,14 @@
           id="explore-feed"
           class="p-4 space-y-4"
           data-tag="<%= currentTag %>"
-          data-search="<%= currentSearchEncoded %>"
-          data-next-page="<%= hasMoreFeed ? currentPage + 1 : currentPage %>"
-          data-has-more="<%= hasMoreFeed ? 'true' : 'false' %>"
-          data-limit="<%= currentLimit %>"
         >
-          <% if (feed && feed.length) { %>
+          <% const hasInitialPosts = Array.isArray(feed) && feed.length > 0; %>
+          <% if (hasInitialPosts) { %>
             <% feed.forEach(post => { %>
-              <div data-post-id="<%= post.post_id || post.id %>">
+              <div
+                data-post-id="<%= post.post_id || post.id %>"
+                data-post-category="<%= (post.categorySlug || 'all') %>"
+              >
                 <%- include('components/post', {
                   id: post.post_id || post.id,
                   name: post.author_display_name || post.name || post.display_name,
@@ -86,12 +61,11 @@
               </div>
             <% }) %>
           <% } else { %>
-            <p class="text-center text-gray-400 py-6">No posts found for this filter.</p>
+            <p class="text-center text-gray-400 py-6">No posts available yet.</p>
           <% } %>
-          <div id="feed-loader" class="py-4 text-center text-gray-400 hidden">
-            Loading more posts...
+          <div id="explore-empty" class="text-center text-gray-400 py-6 <%= hasInitialPosts ? 'hidden' : '' %>">
+            No posts found for this category.
           </div>
-          <div id="feed-sentinel" class="h-4"></div>
         </div>
       </main>
     </div>
@@ -100,82 +74,88 @@
       (function() {
         const feedEl = document.getElementById('explore-feed');
         if (!feedEl) return;
-        const loaderEl = document.getElementById('feed-loader');
-        const sentinelEl = document.getElementById('feed-sentinel');
 
-        let isLoading = false;
-        let hasMore = feedEl.dataset.hasMore === 'true';
-        let nextPage = Number(feedEl.dataset.nextPage || '2');
-        const limit = Number(feedEl.dataset.limit || '10');
-        const tag = feedEl.dataset.tag || 'all';
-        const searchParam = feedEl.dataset.search ? decodeURIComponent(feedEl.dataset.search) : '';
+        const emptyEl = document.getElementById('explore-empty');
+        const postNodes = Array.from(feedEl.querySelectorAll('[data-post-category]'));
+        const tabLinks = Array.from(document.querySelectorAll('[data-explore-tag]'));
+        const validTags = new Set(['all']);
 
-        const toggleLoader = (show) => {
-          if (!loaderEl) return;
-          loaderEl.classList.toggle('hidden', !show);
+        tabLinks.forEach((link) => {
+          const slug = (link.dataset.exploreTag || '').toLowerCase();
+          if (slug) validTags.add(slug);
+        });
+
+        const ACTIVE_CLASSES = ['border-purple-400', 'text-white-500', 'font-semibold'];
+        const INACTIVE_CLASSES = ['border-transparent', 'text-gray-400'];
+        const INACTIVE_HOVER = ['hover:text-white', 'hover:border-purple-400'];
+
+        const normalizeTag = (tag) => {
+          const candidate = (tag || '').toLowerCase();
+          return validTags.has(candidate) ? candidate : 'all';
         };
 
-        const appendPosts = (items) => {
-          if (!Array.isArray(items) || !items.length) return;
-          items.forEach((html) => {
-            if (!html) return;
-            const temp = document.createElement('div');
-            temp.innerHTML = html.trim();
-            while (temp.firstChild) {
-              feedEl.insertBefore(temp.firstChild, loaderEl);
+        const updateEmptyState = (visibleCount) => {
+          if (!emptyEl) return;
+          emptyEl.classList.toggle('hidden', visibleCount > 0);
+        };
+
+        const updateTabs = (activeTag) => {
+          tabLinks.forEach((link) => {
+            const isActive = (link.dataset.exploreTag || '').toLowerCase() === activeTag;
+            if (isActive) {
+              link.classList.add(...ACTIVE_CLASSES);
+              link.classList.remove(...INACTIVE_CLASSES);
+              link.classList.remove(...INACTIVE_HOVER);
+              link.setAttribute('aria-current', 'page');
+            } else {
+              link.classList.remove(...ACTIVE_CLASSES);
+              link.classList.add(...INACTIVE_CLASSES);
+              link.classList.add(...INACTIVE_HOVER);
+              link.removeAttribute('aria-current');
             }
           });
-          if (window.feather && typeof window.feather.replace === 'function') {
-            window.feather.replace();
-          }
         };
 
-        const loadMore = async () => {
-          if (isLoading || !hasMore) return;
-          isLoading = true;
-          toggleLoader(true);
-
-          try {
-            const params = new URLSearchParams();
-            params.set('tag', tag);
-            params.set('page', String(nextPage));
-            params.set('limit', String(limit));
-            if (searchParam) params.set('q', searchParam);
-
-            const response = await fetch(`/explore/feed?${params.toString()}`, {
-              headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            if (!response.ok) throw new Error('Failed to fetch posts');
-            const data = await response.json();
-            if (!data || !Array.isArray(data.items)) throw new Error('Invalid response format');
-
-            appendPosts(data.items);
-            hasMore = Boolean(data.hasMore);
-            feedEl.dataset.hasMore = hasMore ? 'true' : 'false';
-            if (hasMore && typeof data.nextPage === 'number') {
-              nextPage = data.nextPage;
-              feedEl.dataset.nextPage = String(nextPage);
-            } else if (!hasMore && observer) {
-              observer.disconnect();
-            }
-          } catch (err) {
-            console.error('Failed to load more posts:', err);
-          } finally {
-            isLoading = false;
-            toggleLoader(false);
-          }
-        };
-
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              loadMore();
-            }
+        const filterPosts = (tag) => {
+          let visibleCount = 0;
+          postNodes.forEach((node) => {
+            const category = (node.dataset.postCategory || 'all').toLowerCase();
+            const matches = tag === 'all' || category === tag;
+            node.classList.toggle('hidden', !matches);
+            if (matches) visibleCount += 1;
           });
-        }, { rootMargin: '200px' });
+          updateEmptyState(visibleCount);
+        };
 
-        if (hasMore && sentinelEl) {
-          observer.observe(sentinelEl);
+        const applyTag = (tag) => {
+          const normalized = normalizeTag(tag);
+          feedEl.dataset.tag = normalized;
+          filterPosts(normalized);
+          updateTabs(normalized);
+          return normalized;
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const initialParamTag = urlParams.get('tag');
+        const initialTag = applyTag(initialParamTag || feedEl.dataset.tag || 'all');
+
+        tabLinks.forEach((link) => {
+          link.addEventListener('click', (event) => {
+            event.preventDefault();
+            const nextTag = applyTag(link.dataset.exploreTag);
+            const url = new URL(window.location.href);
+            if (nextTag === 'all') {
+              url.searchParams.delete('tag');
+            } else {
+              url.searchParams.set('tag', nextTag);
+            }
+            window.history.replaceState({}, '', url.toString());
+          });
+        });
+
+        if (!initialTag) {
+          updateTabs('all');
+          filterPosts('all');
         }
       })();
     </script>
