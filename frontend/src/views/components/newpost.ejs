@@ -1,46 +1,60 @@
 <% const ph = typeof placeholder !== 'undefined' ? placeholder : "What's happening?"; %>
 
-<div class="flex items-start space-x-3 p-4 border-b border-gray-700">
+<div class="flex items-start space-x-3 p-4 border-b border-gray-700" data-newpost-component>
   <div class="w-10 h-10 bg-gray-500 rounded-full"></div>
   <div class="flex-1">
-    <textarea id="newpost-text" placeholder="<%= ph %>" class="w-full bg-transparent text-sm resize-none outline-none max-h-96 overflow-hidden"></textarea>
+    <textarea data-role="content" placeholder="<%= ph %>" class="w-full bg-transparent text-sm resize-none outline-none max-h-96 overflow-hidden"></textarea>
 
     <!-- Image upload + multi-preview -->
-    <div id="previewList" class="mt-3 hidden grid grid-cols-3 gap-3"></div>
+    <div data-role="preview-list" class="mt-3 hidden grid grid-cols-3 gap-3"></div>
 
     <!-- Tag picker (cards) -->
-    <div id="tagPicker" class="mt-4 hidden" aria-hidden="true">
-      <div class="text-sm text-slate-400 mb-2">Choose tags</div>
-      <div id="tagGrid" class="grid grid-cols-3 gap-3"></div>
-      <!-- hidden inputs container for form submission -->
-      <div id="tagInputs" aria-hidden="true"></div>
+    <div data-role="tag-picker" class="mt-4 hidden" aria-hidden="true">
+      <div class="text-sm text-slate-400 mb-2">Choose a category</div>
+      <div data-role="tag-grid" class="grid grid-cols-3 gap-3"></div>
     </div>
 
     <div class="flex justify-between items-center mt-2">
       <div class="flex items-center space-x-4 text-gray-400">
-        <label for="imageInput" class="cursor-pointer flex items-center gap-2">
+        <label class="cursor-pointer flex items-center gap-2">
           <i data-feather="image"></i>
           <span class="text-xs">Add images</span>
+          <input type="file" accept="image/*" class="hidden" multiple data-role="file-input" />
         </label>
-        <input id="imageInput" type="file" accept="image/*" class="hidden" multiple />
-        <button id="toggleTagPicker" type="button" class="flex items-center gap-2 text-gray-400 hover:text-white focus:outline-none" aria-expanded="false" aria-controls="tagPicker">
+        <button type="button" data-role="toggle-tags" class="flex items-center gap-2 text-gray-400 hover:text-white focus:outline-none" aria-expanded="false">
           <i data-feather="tag"></i>
           <span class="sr-only">Add tag</span>
         </button>
       </div>
-      <button id="submitPost" class="bg-purple-600 px-4 py-1 rounded-full text-sm hover:bg-purple-700">Post</button>
+      <button data-role="submit" class="bg-purple-600 px-4 py-1 rounded-full text-sm hover:bg-purple-700">Post</button>
     </div>
   </div>
 
   <script>
     (function(){
-      const ta = document.getElementById('newpost-text');
-      const imgInput = document.getElementById('imageInput');
-      const preview = document.getElementById('previewContainer');
-      const previewImg = document.getElementById('previewImage');
-      let selectedFiles = []; // ย้ายมาประกาศที่นี่
-      
-      // ย้าย function มาไว้ที่นี่
+      const script = document.currentScript;
+      const root = script ? script.closest('[data-newpost-component]') : null;
+      if (!root) {
+        console.warn('newpost component: failed to resolve root element');
+        return;
+      }
+
+      const ta = root.querySelector('[data-role="content"]');
+      const imgInput = root.querySelector('[data-role="file-input"]');
+      const previewList = root.querySelector('[data-role="preview-list"]');
+      const submitBtn = root.querySelector('[data-role="submit"]');
+      const toggleBtn = root.querySelector('[data-role="toggle-tags"]');
+      const tagPicker = root.querySelector('[data-role="tag-picker"]');
+      const tagGrid = root.querySelector('[data-role="tag-grid"]');
+
+      if (!ta || !imgInput || !previewList || !submitBtn || !toggleBtn || !tagPicker || !tagGrid) {
+        console.error('newpost component: missing required elements');
+        return;
+      }
+
+      let selectedFiles = [];
+      let selectedCategory = null;
+
       const syncInputFiles = () => {
         try {
           const dt = new DataTransfer();
@@ -52,7 +66,6 @@
       };
 
       const renderPreviews = () => {
-        const previewList = document.getElementById('previewList');
         previewList.innerHTML = '';
         if (selectedFiles.length === 0) {
           previewList.classList.add('hidden');
@@ -69,6 +82,7 @@
           removeBtn.type = 'button';
           removeBtn.className = 'absolute top-1 right-1 bg-white/90 hover:bg-white text-gray-700 rounded-full p-1 shadow transition transform hover:scale-105 focus:outline-none';
           removeBtn.setAttribute('aria-label', 'Remove image');
+          removeBtn.dataset.index = idx.toString();
           removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9.293l4.646-4.647a1 1 0 011.414 1.414L11.414 10.707l4.646 4.646a1 1 0 01-1.414 1.414L10 12.121l-4.646 4.646a1 1 0 01-1.414-1.414l4.646-4.646L3.94 6.06A1 1 0 015.354 4.646L10 9.293z" clip-rule="evenodd"/></svg>';
 
           const img = document.createElement('img');
@@ -80,7 +94,10 @@
             img.classList.add('opacity-0', 'scale-95');
             cell.classList.add('pointer-events-none');
             setTimeout(() => {
-              selectedFiles.splice(idx, 1);
+              const index = Number(ev.currentTarget.dataset.index);
+              if (!Number.isNaN(index)) {
+                selectedFiles.splice(index, 1);
+              }
               syncInputFiles();
               renderPreviews();
             }, 180);
@@ -97,96 +114,80 @@
         });
       };
 
-      if (ta) {
-        const resize = () => {
-          ta.style.height = 'auto';
-          // clamp to max of 384px (24rem) via CSS max-h-96
-          ta.style.height = Math.min(ta.scrollHeight, 384) + 'px';
-        };
+      const resizeTextarea = () => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 384) + 'px';
+      };
 
-        ta.addEventListener('input', resize, { passive: true });
-        // initialize size if there's content
-        setTimeout(resize, 0);
-      }
+      ta.addEventListener('input', resizeTextarea, { passive: true });
+      setTimeout(resizeTextarea, 0);
 
-      // Handle post submission
-      const submitBtn = document.getElementById('submitPost');
-      if (submitBtn) {
-        submitBtn.addEventListener('click', async () => {
-          const content = ta.value.trim();
-          if (!content) {
-            alert('Please enter some content for your post');
-            return;
+      submitBtn.addEventListener('click', async () => {
+        const content = ta.value.trim();
+        if (!content) {
+          alert('Please enter some content for your post');
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('content', content);
+
+        selectedFiles.forEach((file) => {
+          formData.append('images', file);
+        });
+
+        if (selectedCategory) {
+          formData.append('category', selectedCategory);
+          formData.append('tags', selectedCategory);
+        }
+
+        try {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Posting...';
+
+          const response = await fetch('/api/posts', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create post');
           }
 
-          const formData = new FormData();
-          formData.append('content', content);
-          
-          // Add selected images if any
-          if (selectedFiles) {
-            selectedFiles.forEach((file, index) => {
-              formData.append(`images`, file);
-            });
-          }
+          ta.value = '';
+          selectedFiles = [];
+          renderPreviews();
+          selectedCategory = null;
+          renderTags();
+          updateToggleState();
 
-          // Add selected tags if any
-          if (selectedTags && selectedTags.size > 0) {
-            formData.append('tags', Array.from(selectedTags).join(','));
-          }
+          window.location.reload();
+        } catch (error) {
+          console.error('Error creating post:', error);
+          alert('Failed to create post. Please try again.');
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Post';
+        }
+      });
 
-          try {
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Posting...';
-
-            const response = await fetch('/api/posts', {
-              method: 'POST',
-              body: formData
-            });
-
-            if (!response.ok) {
-              throw new Error('Failed to create post');
-            }
-
-            // Clear form and reset state
-            ta.value = '';
-            if (selectedFiles) {
-              selectedFiles = [];
-              renderPreviews();
-            }
-            if (selectedTags) {
-              selectedTags.clear();
-              syncTagInputs();
-            }
-
-            // Refresh the page or update the feed
-            window.location.reload();
-          } catch (error) {
-            console.error('Error creating post:', error);
-            alert('Failed to create post. Please try again.');
-          } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Post';
+      imgInput.addEventListener('change', (e) => {
+        const files = Array.from(e.target.files || []);
+        let hasNew = false;
+        files.forEach(f => {
+          const exists = selectedFiles.some(sf => sf.name === f.name && sf.size === f.size && sf.lastModified === f.lastModified);
+          if (!exists) {
+            selectedFiles.push(f);
+            hasNew = true;
           }
         });
-      }
-
-      if (imgInput) {
-
-        imgInput.addEventListener('change', (e) => {
-          const files = Array.from(e.target.files || []);
-          files.forEach(f => {
-            // avoid duplicates by name+size
-            const exists = selectedFiles.some(sf => sf.name === f.name && sf.size === f.size && sf.lastModified === f.lastModified);
-            if (!exists) selectedFiles.push(f);
-          });
+        if (hasNew) {
           syncInputFiles();
           renderPreviews();
-          // reset input value so re-selecting same file later triggers change
-          imgInput.value = '';
-        });
-      }
+        }
+        imgInput.value = '';
+      });
 
-      // --- Tag picker logic ---
       const tags = [
         { slug: '2d-art', label: '2D Art' },
         { slug: '3d-model', label: '3D Model' },
@@ -196,10 +197,6 @@
         { slug: 'ux-ui', label: 'UX/UI design' }
       ];
 
-      const tagGrid = document.getElementById('tagGrid');
-      const tagInputs = document.getElementById('tagInputs');
-      const selectedTags = new Set();
-
       const renderTags = () => {
         tagGrid.innerHTML = '';
         tags.forEach(t => {
@@ -208,21 +205,18 @@
           card.className = 'flex flex-col items-center p-3 rounded-lg bg-[#1f2743] border border-[#3b3450] text-white/90 hover:border-pink-400 transition focus:outline-none';
           card.setAttribute('data-slug', t.slug);
 
-    const label = document.createElement('div');
-    label.className = 'text-sm text-center';
-    label.textContent = t.label;
+          const label = document.createElement('div');
+          label.className = 'text-sm text-center';
+          label.textContent = t.label;
+          card.appendChild(label);
 
-    card.appendChild(label);
+          if (selectedCategory === t.slug) {
+            card.classList.add('ring-2', 'ring-pink-400', 'border-pink-300');
+          }
 
           card.addEventListener('click', () => {
-            if (selectedTags.has(t.slug)) {
-              selectedTags.delete(t.slug);
-              card.classList.remove('ring-2', 'ring-pink-400', 'border-pink-300');
-            } else {
-              selectedTags.add(t.slug);
-              card.classList.add('ring-2', 'ring-pink-400', 'border-pink-300');
-            }
-            syncTagInputs();
+            selectedCategory = selectedCategory === t.slug ? null : t.slug;
+            renderTags();
             updateToggleState();
           });
 
@@ -230,53 +224,34 @@
         });
       };
 
-      const syncTagInputs = () => {
-        tagInputs.innerHTML = '';
-        selectedTags.forEach(slug => {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = 'tags[]';
-          input.value = slug;
-          tagInputs.appendChild(input);
-        });
-        updateToggleState();
+      const tagIcon = toggleBtn ? toggleBtn.querySelector('[data-feather]') : null;
+
+      const updateToggleState = () => {
+        const hasSelected = Boolean(selectedCategory);
+        const isOpen = tagPicker && !tagPicker.classList.contains('hidden');
+        const active = hasSelected || isOpen;
+        if (!toggleBtn) return;
+        if (active) {
+          toggleBtn.classList.remove('text-gray-400');
+          toggleBtn.classList.add('text-pink-400');
+          if (tagIcon) tagIcon.classList.add('text-pink-400');
+        } else {
+          toggleBtn.classList.remove('text-pink-400');
+          toggleBtn.classList.add('text-gray-400');
+          if (tagIcon) tagIcon.classList.remove('text-pink-400');
+        }
       };
 
-      renderTags();
-
-    // toggle tag picker and update icon color when active
-    const toggleBtn = document.getElementById('toggleTagPicker');
-    const tagPicker = document.getElementById('tagPicker');
-    const tagIcon = toggleBtn ? toggleBtn.querySelector('[data-feather]') : null;
-
-    const updateToggleState = () => {
-      const hasSelected = selectedTags.size > 0;
-      const isOpen = tagPicker && !tagPicker.classList.contains('hidden');
-      const active = hasSelected || isOpen;
-      if (!toggleBtn) return;
-      // change color classes
-      if (active) {
-        toggleBtn.classList.remove('text-gray-400');
-        toggleBtn.classList.add('text-pink-400');
-        if (tagIcon) tagIcon.classList.add('text-pink-400');
-      } else {
-        toggleBtn.classList.remove('text-pink-400');
-        toggleBtn.classList.add('text-gray-400');
-        if (tagIcon) tagIcon.classList.remove('text-pink-400');
-      }
-    };
-
-    if (toggleBtn && tagPicker) {
       toggleBtn.addEventListener('click', () => {
         const isHidden = tagPicker.classList.toggle('hidden');
         tagPicker.setAttribute('aria-hidden', isHidden ? 'true' : 'false');
         toggleBtn.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
         updateToggleState();
       });
-    }
 
-    // initial state
-    updateToggleState();
+      renderPreviews();
+      renderTags();
+      updateToggleState();
     })();
   </script>
 </div>

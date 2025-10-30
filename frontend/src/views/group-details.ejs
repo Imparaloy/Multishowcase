@@ -132,8 +132,10 @@
 									document.addEventListener('DOMContentLoaded', function() {
 										// Wait for the newpost component to initialize
 										setTimeout(() => {
-											const submitBtn = document.getElementById('submitPost');
-											const textarea = document.getElementById('newpost-text');
+											const newpostComponent = document.querySelector('#posts-tab [data-newpost-component]');
+											if (!newpostComponent) return;
+											const submitBtn = newpostComponent.querySelector('[data-role="submit"]');
+											const textarea = newpostComponent.querySelector('[data-role="content"]');
 											
 											if (submitBtn && textarea) {
 												// Remove all existing event listeners by replacing the button

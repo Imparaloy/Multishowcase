@@ -63,6 +63,12 @@ function normalizeMediaMetadata(input) {
 async function uploadIncomingMedia(files, user) {
   if (!files) return [];
 
+  if (!process.env.S3_BUCKET_NAME || !process.env.AWS_REGION) {
+    throw Object.assign(new Error('S3 storage is not configured'), {
+      code: 'S3_CONFIG_MISSING'
+    });
+  }
+
   const targetUsername = resolveUploadUsername(user);
   const list = Array.isArray(files) ? files : [files];
   const uploads = [];
@@ -148,9 +154,27 @@ export const createPost = async (req, res) => {
       'ux-ui': 'UX/UI design'
     };
 
-    const categoryInput =
-      typeof req.body.category === 'string' ? req.body.category.toLowerCase() : '';
-    const categoryEnum = categoryMap[categoryInput] || '2D art';
+    const categoryCandidates = [];
+    const pushCandidate = (value) => {
+      if (typeof value === 'string' && value.trim() !== '') {
+        categoryCandidates.push(value.trim().toLowerCase());
+      }
+    };
+
+    pushCandidate(req.body.category);
+
+    if (typeof req.body.tags === 'string') {
+      req.body.tags.split(',').forEach(pushCandidate);
+    }
+
+    const arrayTags =
+      Array.isArray(req.body.tags) ? req.body.tags :
+      Array.isArray(req.body['tags[]']) ? req.body['tags[]'] :
+      [];
+    arrayTags.forEach(pushCandidate);
+
+    const categorySlug = categoryCandidates.find((slug) => categoryMap[slug]) || '2d-art';
+    const categoryEnum = categoryMap[categorySlug] || '2D art';
 
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -246,6 +270,13 @@ export const createPost = async (req, res) => {
         success: false,
         error: 'Some media files were not uploaded to S3',
         missingKeys: err.missingKeys
+      });
+    }
+    if (err.code === 'S3_CONFIG_MISSING') {
+      return res.status(500).json({
+        success: false,
+        error: 'File uploads are disabled',
+        details: 'Missing AWS S3 configuration on the server'
       });
     }
     return res.status(500).json({
