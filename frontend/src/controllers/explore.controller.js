@@ -44,7 +44,7 @@ async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset }) {
   });
 }
 
-function renderPostPartial(req, locals) {
+export function renderPostPartial(req, locals) {
   return new Promise((resolve, reject) => {
     req.app.render('components/post', locals, (err, html) => {
       if (err) return reject(err);
