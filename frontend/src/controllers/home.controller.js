@@ -8,9 +8,6 @@ export const getForYouPosts = async (req, res) => {
   try {
     // สมมติว่ามี user_id ใน req.user (เช่น มาจาก middleware authentication)
     const userId = req.user?.user_id;
-    if (!userId) {
-      return res.status(401).send('Not authenticated');
-    }
 
     // ดึงข้อมูล user ปัจจุบันจากฐานข้อมูล
     const userResult = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
@@ -30,9 +27,6 @@ export const getForYouPosts = async (req, res) => {
 export const getFollowingPosts = async (req, res) => {
   try {
     const userId = req.user?.user_id;
-    if (!userId) {
-      return res.status(401).send('Not authenticated');
-    }
 
     const userResult = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
     const user = userResult.rows[0];
