@@ -32,7 +32,39 @@
   </div>
 
   <!-- Content -->
-  <div class="mt-3 text-sm leading-relaxed text-gray-200"><%= content %></div>
+  <div class="mt-3 text-sm leading-relaxed text-gray-200">
+    <% const textContent = typeof content === 'string' ? content.trim() : (typeof body === 'string' ? body.trim() : ''); %>
+    <% const rawMediaList = Array.isArray(media) ? media.filter(Boolean) : []; %>
+    <% const heroMedia = (typeof primaryMedia !== 'undefined' && primaryMedia) ? primaryMedia : (rawMediaList.length ? rawMediaList[0] : null); %>
+    <% const heroIndex = heroMedia ? rawMediaList.indexOf(heroMedia) : -1; %>
+    <% const galleryMedia = heroMedia ? (heroIndex > -1 ? rawMediaList.filter((_, idx) => idx !== heroIndex) : rawMediaList) : rawMediaList; %>
+
+    <% if (textContent) { %>
+      <p class="whitespace-pre-line"><%= textContent %></p>
+    <% } %>
+
+    <% if (heroMedia) { %>
+      <div class="mt-3 overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833]">
+        <a href="<%= heroMedia %>" target="_blank" rel="noopener">
+          <img src="<%= heroMedia %>" alt="Post media" class="w-full h-full object-cover" loading="lazy" />
+        </a>
+      </div>
+    <% } %>
+
+    <% if (galleryMedia.length) { %>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2">
+        <% galleryMedia.forEach(function(url) { %>
+          <a href="<%= url %>" target="_blank" rel="noopener" class="block overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833]">
+            <img src="<%= url %>" alt="Post media" class="w-full h-full object-cover" loading="lazy" />
+          </a>
+        <% }); %>
+      </div>
+    <% } %>
+
+    <% if (!textContent && !heroMedia && !galleryMedia.length && typeof content !== 'undefined' && content) { %>
+      <span><%= content %></span>
+    <% } %>
+  </div>
 
   <!-- Actions -->
   <div class="flex justify-start mt-4 text-gray-400 text-sm" style="column-gap:100px;">

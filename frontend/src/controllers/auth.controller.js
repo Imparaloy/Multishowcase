@@ -99,7 +99,6 @@ export async function login(req, res) {
 
   try {
     const data = await cognitoClient.send(cmd);
-    console.log("AuthenticationResult:", data.AuthenticationResult);
     const { AccessToken, IdToken, RefreshToken, ExpiresIn } = data.AuthenticationResult;
 
     const baseCookieOptions = {

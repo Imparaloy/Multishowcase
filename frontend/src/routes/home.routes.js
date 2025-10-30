@@ -4,9 +4,10 @@ import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate
 const router = express.Router();
 
 // Home (For you)
-router.get('/', requireAuth, getForYouPosts);
+router.get('/', authenticateCognitoJWT, requireAuth, getForYouPosts);
+
 
 // Following
-router.get('/following', requireAuth, authenticateCognitoJWT, getFollowingPosts);
+router.get('/following', authenticateCognitoJWT, requireAuth, getFollowingPosts);
 
 export default router;
