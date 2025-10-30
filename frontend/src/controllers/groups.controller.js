@@ -1,5 +1,5 @@
 import pool from '../config/dbconn.js';
-import { exploreTags } from '../data/mock.js';
+import TAG_LIST from '../data/tags.js';
 
 // แสดงหน้า groups ทั้งหมด
 export async function renderGroupsPage(req, res) {
@@ -11,8 +11,8 @@ export async function renderGroupsPage(req, res) {
       ORDER BY g.created_at DESC
     `);
     const groups = groupsRes.rows;
-    const currentUser = req.user;
-    return res.render('groups', { title: 'Groups', groups, currentUser, activePage: 'groups', exploreTags });
+  const currentUser = req.user;
+  return res.render('groups', { title: 'Groups', groups, currentUser, activePage: 'groups', exploreTags: TAG_LIST });
   } catch (e) {
     console.error('Failed to load groups:', e);
     return res.status(500).send('Failed to load groups');
@@ -72,12 +72,7 @@ export async function renderGroupDetailsPage(req, res) {
     );
     const posts = postsRes.rows;
     const pendingRequests = [];
-    const tagMap = {};
-    if (exploreTags && Array.isArray(exploreTags)) {
-      exploreTags.forEach(tag => {
-        tagMap[tag.slug] = tag.label;
-      });
-    }
+    const tagMap = Object.fromEntries(TAG_LIST.map(t => [t.slug, t.label]));
     return res.render('group-details', {
       title: group.name,
       group,
@@ -87,7 +82,7 @@ export async function renderGroupDetailsPage(req, res) {
       pendingRequests,
       posts,
       members,
-      exploreTags,
+      exploreTags: TAG_LIST,
       tagMap
     });
   } catch (e) {

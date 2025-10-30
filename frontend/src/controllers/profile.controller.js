@@ -1,7 +1,6 @@
 import { AdminUpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
 import { cognitoClient } from "../services/cognito.service.js";
 import pool from "../config/dbconn.js";
-import { currentUser as mockUser } from "../data/mock.js";
 
 function fallbackEmailFromSub(sub) {
   return `user-${sub}@placeholder.local`;
