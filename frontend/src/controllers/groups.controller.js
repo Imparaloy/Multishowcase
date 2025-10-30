@@ -2,6 +2,7 @@ import pool from '../config/dbconn.js';
 import TAG_LIST from '../data/tags.js';
 import { getUnifiedFeed } from './feed.controller.js';
 import { createPost as createStandalonePost } from './posts.controller.js';
+import { loadCurrentUser } from '../utils/session-user.js';
 
 const BASE_GROUP_SELECT = `
   SELECT
@@ -44,50 +45,6 @@ function parseJsonArray(value) {
     }
   }
   return [];
-}
-
-function fallbackEmailFromSub(sub) {
-  if (!sub) return 'user@multishowcase.local';
-  return `user-${sub}@multishowcase.local`;
-}
-
-async function ensureUserRecordFromClaims(claims = {}) {
-  if (!claims?.sub) return null;
-
-  const payload = claims.payload || {};
-
-  const username =
-    claims.username ||
-    claims['cognito:username'] ||
-    payload['cognito:username'] ||
-    payload.username ||
-    claims.email?.split('@')[0] ||
-    `user_${claims.sub.slice(0, 8)}`;
-
-  const displayName =
-    claims.name ||
-    payload.name ||
-    payload['custom:display_name'] ||
-    username;
-
-  const email =
-    claims.email ||
-    payload.email ||
-    fallbackEmailFromSub(claims.sub);
-
-  const { rows } = await pool.query(
-    `INSERT INTO users (cognito_sub, username, display_name, email)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (cognito_sub) DO UPDATE
-       SET username = EXCLUDED.username,
-           display_name = EXCLUDED.display_name,
-           email = EXCLUDED.email,
-           updated_at = NOW()
-     RETURNING *`,
-    [claims.sub, username, displayName, email]
-  );
-
-  return rows[0] || null;
 }
 
 function formatGroupRow(row) {
@@ -160,43 +117,10 @@ async function fetchGroups({ groupId } = {}) {
   return rows.map(formatGroupRow);
 }
 
-async function loadCurrentUser(req) {
-  const claims = req.user || {};
-  if (!claims) return null;
-
-  let record = null;
-
-  if (claims.user_id) {
-    const { rows } = await pool.query('SELECT * FROM users WHERE user_id = $1', [claims.user_id]);
-    record = rows[0] || null;
-  }
-
-  if (!record && claims.sub) {
-    const { rows } = await pool.query('SELECT * FROM users WHERE cognito_sub = $1', [claims.sub]);
-    record = rows[0] || null;
-  }
-
-  if (!record && claims.sub) {
-    try {
-      record = await ensureUserRecordFromClaims(claims);
-    } catch (err) {
-      console.error('Failed to upsert user from claims:', err);
-    }
-  }
-
-  if (record) {
-    const payload = claims.payload || {};
-    const groups = claims.groups || payload['cognito:groups'] || [];
-    return { ...record, groups };
-  }
-
-  return null;
-}
-
 // แสดงหน้า groups ทั้งหมด
 export async function renderGroupsPage(req, res) {
   try {
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
     const groups = await fetchGroups();
 
     return res.render('groups', {
@@ -219,7 +143,7 @@ export async function createGroup(req, res) {
     if (!name || String(name).trim().length === 0) {
       return res.status(400).json({ ok: false, message: 'กรุณากรอกชื่อกลุ่ม' });
     }
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
     const owner_id = currentUser?.user_id;
     if (!owner_id) {
       return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
@@ -282,7 +206,7 @@ export async function createGroup(req, res) {
 export async function renderGroupDetailsPage(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
 
     const [group] = await fetchGroups({ groupId: id });
     if (!group) {
@@ -319,7 +243,7 @@ export async function renderGroupDetailsPage(req, res) {
 export async function joinGroupHandler(req, res) {
   try {
     const { id } = req.params; // group_id
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
     const user_id = currentUser?.user_id;
     if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
@@ -336,7 +260,7 @@ export async function joinGroupHandler(req, res) {
 export async function leaveGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
     const user_id = currentUser?.user_id;
 
     if (!user_id) {
@@ -363,7 +287,7 @@ export async function leaveGroupHandler(req, res) {
 export async function deleteGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
     const user_id = currentUser?.user_id;
 
     if (!user_id) {
@@ -395,7 +319,7 @@ export async function createGroupPost(req, res) {
   const { id } = req.params;
 
   try {
-    const currentUser = await loadCurrentUser(req);
+  const currentUser = await loadCurrentUser(req, { res });
     const author_id = currentUser?.user_id;
 
     if (!author_id) {

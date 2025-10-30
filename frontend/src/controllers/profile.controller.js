@@ -2,85 +2,10 @@ import { AdminUpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identi
 import { cognitoClient } from "../services/cognito.service.js";
 import pool from "../config/dbconn.js";
 import { getUnifiedFeed } from "./feed.controller.js";
-
-function fallbackEmailFromSub(sub) {
-  return `user-${sub}@placeholder.local`;
-}
-
-function buildViewUser(req, userRecord = null) {
-  const payload = req.user?.payload || {};
-  const username =
-    userRecord?.username ||
-    req.user?.username ||
-    req.user?.email ||
-    req.user?.payload?.["cognito:username"] ||
-    null;
-  const hasSession = Boolean(username);
-
-  if (!hasSession) {
-    return {
-      me: {
-        name: mockUser.displayName,
-        username: mockUser.username,
-        email: "",
-        bio: "",
-      },
-      viewer: mockUser,
-    };
-  }
-
-  const displayName =
-    userRecord?.display_name ||
-    payload.name ||
-    req.user?.name ||
-    username;
-  const bio = payload["custom:bio"] || "";
-  const email = req.user?.email || userRecord?.email || "";
-
-  return {
-    me: {
-      name: displayName,
-      username,
-      email,
-      bio,
-    },
-    viewer: {
-      displayName,
-      username,
-      email,
-      groups: req.user?.groups || [],
-    },
-  };
-}
-
-async function ensureUserRecord(client, claims) {
-  if (!claims?.sub) {
-    throw new Error("Missing Cognito subject on request user");
-  }
-
-  const username =
-    claims.username ||
-    claims.payload?.preferred_username ||
-    claims.payload?.username ||
-    claims.email ||
-    claims.sub;
-  const displayName = claims.payload?.name || claims.name || username;
-  const email = claims.email || fallbackEmailFromSub(claims.sub);
-
-  const result = await client.query(
-    `INSERT INTO users (cognito_sub, username, display_name, email)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (cognito_sub) DO UPDATE
-     SET username = EXCLUDED.username,
-         display_name = EXCLUDED.display_name,
-         email = EXCLUDED.email,
-         updated_at = now()
-     RETURNING user_id, username, display_name, email, role`,
-    [claims.sub, username, displayName, email]
-  );
-
-  return result.rows[0];
-}
+import {
+  buildViewUser,
+  loadCurrentUser,
+} from "../utils/session-user.js";
 
 async function fetchPostsForUser(userRecord) {
   const posts = await getUnifiedFeed({ authorId: userRecord.user_id });
@@ -110,24 +35,16 @@ export async function renderProfilePage(req, res) {
   let feed = [];
   let userRecord = null;
 
-  if (req.user?.sub) {
-    let client;
-    try {
-      client = await pool.connect();
-      userRecord = await ensureUserRecord(client, req.user);
-      if (userRecord) {
-        feed = await fetchPostsForUser(userRecord);
-        if (feed.length) {
-          console.log('Profile feed first media sample:', feed[0].media);
-        }
-      }
-    } catch (error) {
-      console.error("Error loading profile feed:", error);
-    } finally {
-      if (client) {
-        client.release();
+  try {
+    userRecord = await loadCurrentUser(req, { res });
+    if (userRecord) {
+      feed = await fetchPostsForUser(userRecord);
+      if (feed.length) {
+        console.log('Profile feed first media sample:', feed[0].media);
       }
     }
+  } catch (error) {
+    console.error("Error loading profile feed:", error);
   }
 
   const { me, viewer } = buildViewUser(req, userRecord);
@@ -151,7 +68,8 @@ export function renderProfileEditPage(req, res) {
 
 export async function updateProfile(req, res) {
   const { displayName, bio, email } = req.body;
-  const username = req.user?.username;
+  const currentUser = await loadCurrentUser(req, { res });
+  const username = currentUser?.username || req.user?.username;
 
   if (!username) {
     return res.status(401).json({
@@ -160,13 +78,18 @@ export async function updateProfile(req, res) {
     });
   }
 
+  const safeTrim = (value) => (typeof value === "string" ? value.trim() : undefined);
+  const trimmedDisplayName = safeTrim(displayName);
+  const trimmedBio = safeTrim(bio);
+  const trimmedEmail = safeTrim(email);
+
   // Check if Cognito is available (for development)
   if (!process.env.COGNITO_USER_POOL_ID || !cognitoClient) {
     console.log('Cognito not available, simulating profile update for development');
     
     // Simulate validation
-    if (displayName !== undefined && displayName.trim() !== '') {
-      if (displayName.trim().length > 50) {
+    if (trimmedDisplayName) {
+      if (trimmedDisplayName.length > 50) {
         return res.status(400).json({
           ok: false,
           message: "Display name must be 50 characters or less"
@@ -174,16 +97,16 @@ export async function updateProfile(req, res) {
       }
     }
     
-    if (bio !== undefined && bio.length > 160) {
+    if (trimmedBio && trimmedBio.length > 160) {
       return res.status(400).json({
         ok: false,
         message: "Bio must be 160 characters or less"
       });
     }
     
-    if (email !== undefined && email.trim() !== '') {
+    if (trimmedEmail) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      if (!emailRegex.test(trimmedEmail)) {
         return res.status(400).json({
           ok: false,
           message: "Please enter a valid email address"
@@ -191,14 +114,30 @@ export async function updateProfile(req, res) {
       }
     }
 
+    // Persist changes for development mode so other pages stay in sync
+    try {
+      await pool.query(
+        `UPDATE users
+         SET display_name = COALESCE($1, display_name),
+             bio = COALESCE($2, bio),
+             email = COALESCE($3, email),
+             updated_at = NOW()
+         WHERE username = $4`,
+        [trimmedDisplayName ?? null, trimmedBio ?? null, trimmedEmail ?? null, username]
+      );
+      await loadCurrentUser(req, { res, forceReload: true });
+    } catch (error) {
+      console.error("Failed to update development profile record:", error);
+    }
+
     // Simulate successful update
     return res.json({
       ok: true,
       message: "Profile updated successfully (development mode)",
       data: {
-        displayName: displayName?.trim() || '',
-        bio: bio?.trim() || '',
-        email: email?.trim() || ''
+        displayName: trimmedDisplayName || '',
+        bio: trimmedBio || '',
+        email: trimmedEmail || ''
       }
     });
   }
@@ -207,35 +146,35 @@ export async function updateProfile(req, res) {
     const userAttributes = [];
     
     // Only include fields that have values
-    if (displayName !== undefined && displayName.trim() !== '') {
-      if (displayName.trim().length > 50) {
+    if (trimmedDisplayName) {
+      if (trimmedDisplayName.length > 50) {
         return res.status(400).json({
           ok: false,
           message: "Display name must be 50 characters or less"
         });
       }
-      userAttributes.push({ Name: "name", Value: displayName.trim() });
+      userAttributes.push({ Name: "name", Value: trimmedDisplayName });
     }
     
-    if (bio !== undefined && bio.trim() !== '') {
-      if (bio.length > 160) {
+    if (trimmedBio) {
+      if (trimmedBio.length > 160) {
         return res.status(400).json({
           ok: false,
           message: "Bio must be 160 characters or less"
         });
       }
-      userAttributes.push({ Name: "custom:bio", Value: bio.trim() });
+      userAttributes.push({ Name: "custom:bio", Value: trimmedBio });
     }
     
-    if (email !== undefined && email.trim() !== '') {
+    if (trimmedEmail) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
+      if (!emailRegex.test(trimmedEmail)) {
         return res.status(400).json({
           ok: false,
           message: "Please enter a valid email address"
         });
       }
-      userAttributes.push({ Name: "email", Value: email.trim() });
+      userAttributes.push({ Name: "email", Value: trimmedEmail });
     }
 
     if (userAttributes.length === 0) {
@@ -253,25 +192,26 @@ export async function updateProfile(req, res) {
 
     await cognitoClient.send(command);
 
-    // อัปเดต display_name และ bio ของ user ใน PostgreSQL
+    // อัปเดตข้อมูลผู้ใช้ใน PostgreSQL เพื่อให้หน้าอื่นๆ รับข้อมูลล่าสุดด้วย
     await pool.query(
-      'UPDATE users SET display_name = $1, bio = $2 WHERE username = $3',
-      [displayName, bio, username]
+      `UPDATE users
+       SET display_name = COALESCE($1, display_name),
+           bio = COALESCE($2, bio),
+           email = COALESCE($3, email),
+           updated_at = NOW()
+       WHERE username = $4`,
+      [trimmedDisplayName ?? null, trimmedBio ?? null, trimmedEmail ?? null, username]
     );
 
-    // ลบ user ตาม username
-    await pool.query(
-      'DELETE FROM users WHERE username = $1',
-      [username]
-    );
+    await loadCurrentUser(req, { res, forceReload: true });
 
     return res.json({
       ok: true,
       message: "Profile updated successfully",
       data: {
-        displayName: displayName?.trim() || '',
-        bio: bio?.trim() || '',
-        email: email?.trim() || ''
+        displayName: trimmedDisplayName || '',
+        bio: trimmedBio || '',
+        email: trimmedEmail || ''
       }
     });
 

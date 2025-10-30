@@ -1,6 +1,7 @@
 // src/middlewares/authenticate.js
 import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import dotenv from 'dotenv';
+import { loadCurrentUser } from '../utils/session-user.js';
 dotenv.config();
 
 const userPoolId = process.env.COGNITO_USER_POOL_ID;
@@ -76,7 +77,7 @@ async function authenticateCognitoJWT(req, res, next) {
   // In development, return mock user when verifiers are not configured
   if (!accessVerifier || !idVerifier) {
     req.user = devMockUser;
-    res.locals.user = req.user;
+    await loadCurrentUser(req, { res });
     return next();
   }
 
@@ -93,7 +94,7 @@ async function authenticateCognitoJWT(req, res, next) {
 
     const payload = await verifyEither(token);
     req.user = buildUserFromPayload(payload);
-    res.locals.user = req.user;
+    await loadCurrentUser(req, { res });
     return next();
   } catch (err) {
     console.error('JWT verify failed:', err?.message || err);
@@ -131,8 +132,8 @@ async function attachUserToLocals(req, res, next) {
 
   if (!accessVerifier || !idVerifier) {
     if (process.env.NODE_ENV !== 'production') {
-      res.locals.user = devMockUser;
       req.user = devMockUser;
+      await loadCurrentUser(req, { res });
     }
     return next();
   }
@@ -142,7 +143,7 @@ async function attachUserToLocals(req, res, next) {
     if (!token) return next();
     const payload = await verifyEither(token);
     req.user = buildUserFromPayload(payload);
-    res.locals.user = req.user;
+    await loadCurrentUser(req, { res });
   } catch (err) {
     // Swallow token errors for attach-only usage
   }
