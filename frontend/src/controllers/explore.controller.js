@@ -1,6 +1,6 @@
 import pool from '../config/dbconn.js';
 
-const DEFAULT_LIMIT = 100;
+const DEFAULT_LIMIT = 10;
 
 const CATEGORY_MAP = {
   '2d-art': '2D art',
@@ -16,27 +16,26 @@ const TAG_LIST = [
   ...Object.entries(CATEGORY_MAP).map(([slug, label]) => ({ slug, label }))
 ];
 
-const LABEL_TO_SLUG = Object.entries(CATEGORY_MAP).reduce((acc, [slug, label]) => {
-  acc[label.toLowerCase()] = slug;
-  return acc;
-}, {});
-
-function resolveExploreParams(req) {
-  const tagInput = typeof req.query.tag === 'string' ? req.query.tag.trim().toLowerCase() : 'all';
-  const tagSlug = tagInput === 'all' ? 'all' : CATEGORY_MAP[tagInput] ? tagInput : 'all';
-
-  const limitCandidate = Number.parseInt(req.query.limit, 10);
-  const limit = Number.isNaN(limitCandidate) || limitCandidate < 1 ? DEFAULT_LIMIT : Math.min(limitCandidate, DEFAULT_LIMIT);
-
-  return {
-    tagSlug,
-    limit
-  };
+function normalizeTagSlug(tag) {
+  if (typeof tag !== 'string') return 'all';
+  const key = tag.trim().toLowerCase();
+  if (key === 'all') return 'all';
+  return CATEGORY_MAP[key] ? key : 'all';
 }
 
-function formatPostRow(row) {
-  const mediaSource = Array.isArray(row.media) ? row.media : [];
-  const mediaUrls = mediaSource
+function categoryLabelForSlug(slug) {
+  return slug === 'all' ? null : CATEGORY_MAP[slug] || null;
+}
+
+function toNumber(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 1) return fallback;
+  return parsed;
+}
+
+function extractMediaUrls(rawMedia) {
+  if (!Array.isArray(rawMedia)) return [];
+  return rawMedia
     .map((entry) => {
       if (!entry) return null;
       if (typeof entry === 'string') {
@@ -53,23 +52,16 @@ function formatPostRow(row) {
       return null;
     })
     .filter(Boolean);
-  const categoryLabel = typeof row.category === 'string' ? row.category.trim() : '';
-  let categorySlug = 'all';
-  if (categoryLabel) {
-    const normalized = categoryLabel.toLowerCase();
-    if (LABEL_TO_SLUG[normalized]) {
-      categorySlug = LABEL_TO_SLUG[normalized];
-    } else if (CATEGORY_MAP[normalized]) {
-      categorySlug = normalized;
-    }
-  }
+}
+
+function formatPostRow(row) {
+  const mediaUrls = extractMediaUrls(row.media);
   return {
     id: row.post_id,
     post_id: row.post_id,
     body: row.body || '',
     title: row.title || null,
     category: row.category || null,
-    categorySlug,
     author_id: row.author_id,
     author_username: row.author_username,
     author_display_name: row.author_display_name,
@@ -82,9 +74,16 @@ function formatPostRow(row) {
   };
 }
 
-async function fetchExplorePosts({ searchTerm = '', limit }) {
+async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset }) {
   const conditions = [`p.status = 'published'::post_status`];
   const values = [];
+
+  const categoryLabel = categoryLabelForSlug(tagSlug);
+  if (categoryLabel) {
+    values.push(categoryLabel);
+    const idx = values.length;
+    conditions.push(`p.category = $${idx}::post_category`);
+  }
 
   if (searchTerm) {
     values.push(`%${searchTerm}%`);
@@ -96,6 +95,8 @@ async function fetchExplorePosts({ searchTerm = '', limit }) {
 
   values.push(limit);
   const limitIdx = values.length;
+  values.push(offset);
+  const offsetIdx = values.length;
 
   const text = `
     SELECT
@@ -143,30 +144,104 @@ async function fetchExplorePosts({ searchTerm = '', limit }) {
     ) l ON true
     WHERE ${conditions.join(' AND ')}
     ORDER BY COALESCE(p.published_at, p.created_at) DESC
-    LIMIT $${limitIdx}
+    LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
 
   const { rows } = await pool.query(text, values);
   return rows.map(formatPostRow);
 }
 
+function renderPostPartial(req, locals) {
+  return new Promise((resolve, reject) => {
+    req.app.render('components/post', locals, (err, html) => {
+      if (err) return reject(err);
+      resolve(`<div data-post-id="${locals.id || ''}">${html}</div>`);
+    });
+  });
+}
+
 export const getExplorePage = async (req, res) => {
   try {
-    const params = resolveExploreParams(req);
+    const requestedTag = normalizeTagSlug(req.query.tag);
+    const limit = Math.min(toNumber(req.query.limit, DEFAULT_LIMIT), 50);
+    const page = Math.max(toNumber(req.query.page, 1), 1);
+    const offset = (page - 1) * limit;
+    const searchRaw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const searchTerm = searchRaw.toLowerCase();
 
     const posts = await fetchExplorePosts({
-      limit: params.limit
+      tagSlug: requestedTag,
+      searchTerm,
+      limit,
+      offset
     });
+
+    const hasMore = posts.length === limit;
 
     return res.render('explore', {
       feed: posts,
       tagList: TAG_LIST,
-      activeTag: params.tagSlug,
+      activeTag: requestedTag,
+      searchQuery: searchRaw,
+      searchQueryEncoded: searchRaw ? encodeURIComponent(searchRaw) : '',
+      page,
+      limit,
+      hasMore,
       currentUser: res.locals.user || null,
       activePage: 'explore'
     });
   } catch (err) {
     console.error('getExplorePage error:', err);
     return res.status(500).send('Failed to load explore feed');
+  }
+};
+
+export const getExploreFeed = async (req, res) => {
+  try {
+    const requestedTag = normalizeTagSlug(req.query.tag);
+    const limit = Math.min(toNumber(req.query.limit, DEFAULT_LIMIT), 50);
+    const page = Math.max(toNumber(req.query.page, 1), 1);
+    const offset = (page - 1) * limit;
+    const searchRaw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const searchTerm = searchRaw.toLowerCase();
+
+    const posts = await fetchExplorePosts({
+      tagSlug: requestedTag,
+      searchTerm,
+      limit,
+      offset
+    });
+
+    const hasMore = posts.length === limit;
+    const nextPage = hasMore ? page + 1 : null;
+
+    const rendered = await Promise.all(
+      posts.map((post) =>
+        renderPostPartial(req, {
+          id: post.id,
+          name: post.author_display_name,
+          username: post.author_username,
+          body: post.body,
+          media: post.media,
+          comments: post.comments,
+          likes: post.likes,
+          canDelete: false,
+          currentUser: res.locals.user || null
+        })
+      )
+    );
+
+    return res.json({
+      success: true,
+      items: rendered,
+      hasMore,
+      nextPage
+    });
+  } catch (err) {
+    console.error('getExploreFeed error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to load posts'
+    });
   }
 };
