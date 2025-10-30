@@ -1,6 +1,44 @@
 // home.controller.js
 import pool from '../config/dbconn.js';
 
+function extractMediaUrls(rawMedia) {
+  let list = [];
+  if (Array.isArray(rawMedia)) {
+    list = rawMedia;
+  } else if (typeof rawMedia === 'string' && rawMedia.trim()) {
+    try {
+      const parsed = JSON.parse(rawMedia);
+      if (Array.isArray(parsed)) {
+        list = parsed;
+      }
+    } catch (err) {
+      console.warn('Failed to parse media JSON:', err.message);
+    }
+  } else if (rawMedia && typeof rawMedia === 'object') {
+    list = [rawMedia];
+  }
+
+  const urls = list
+    .map((entry) => {
+      if (!entry) return null;
+      if (typeof entry === 'string') {
+        try {
+          const parsed = JSON.parse(entry);
+          return parsed?.s3_url || null;
+        } catch {
+          return entry.startsWith('http') ? entry : null;
+        }
+      }
+      if (typeof entry === 'object') {
+        return entry?.s3_url || entry?.url || null;
+      }
+      return null;
+    })
+    .filter(Boolean);
+
+  return urls;
+}
+
 // หา user ปัจจุบันจาก JWT
 async function loadCurrentUser(req) {
   const claims = req.user || {};
@@ -66,11 +104,7 @@ export const getForYouPosts = async (req, res) => {
     const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
     // map media ให้เป็น array ของ S3 URL string
     const feed = rows.map(row => {
-      let media = Array.isArray(row.media) ? row.media : [];
-      // ถ้า media เป็น array ของ object (เช่น { s3_url: ... }) ให้ map เป็น string
-      if (media.length && typeof media[0] === 'object' && media[0] !== null && media[0].s3_url) {
-        media = media.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
-      }
+      const media = extractMediaUrls(row.media);
       return { ...row, media };
     });
     if (feed.length) {
@@ -103,10 +137,7 @@ export const getFollowingPosts = async (req, res) => {
     // TODO: ถ้ามีตาราง follows ให้เปลี่ยน WHERE ให้เหลือเฉพาะ author ที่ currentUser ติดตาม
     const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
     const feed = rows.map(row => {
-      let media = Array.isArray(row.media) ? row.media : [];
-      if (media.length && typeof media[0] === 'object' && media[0] !== null && media[0].s3_url) {
-        media = media.map(m => m && m.s3_url ? m.s3_url : null).filter(Boolean);
-      }
+      const media = extractMediaUrls(row.media);
       return { ...row, media };
     });
     if (feed.length) {
