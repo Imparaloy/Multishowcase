@@ -27,7 +27,6 @@ SELECT
   u.user_id       AS author_id,
   u.username      AS author_username,
   COALESCE(u.display_name, u.username) AS author_display_name,
-  NULL::text      AS author_avatar,
   COALESCE(
     json_agg(
       jsonb_build_object(
