@@ -220,7 +220,7 @@ export const createPost = async (req, res) => {
     const postResult = await client.query(
       `
       INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
-      VALUES ($1, $2, $3, $4::post_status, $5, $6::post_category, $7)
+      VALUES ($1, $2, $3, $4::post_status, $5::timestamp, $6::post_category, $7)
       RETURNING post_id
       `,
       [authorId, title, content, normalizedStatus, publishedAt, categoryEnum, groupId]
@@ -294,15 +294,23 @@ export const deletePost = async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    const userId = await resolveAuthorId(client, req.user).catch((err) => {
-      throw Object.assign(new Error('Unauthorized: Unable to resolve user'), { cause: err });
-    });
-    const userRole = req.user?.groups?.includes('admin') ? 'admin' : 'user';
+    // Get user info from JWT token directly
+    const userSub = req.user?.sub;
+    if (!userSub) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Missing user token' });
+    }
+    
+    // Check if user is admin
+    const isAdmin = req.user?.groups?.includes('admin') || false;
     
     const postId = req.params.id;
     
+    // Get post info with author details
     const postResult = await client.query(
-      'SELECT author_id FROM posts WHERE post_id = $1',
+      `SELECT p.author_id, u.cognito_sub
+       FROM posts p
+       JOIN users u ON u.user_id = p.author_id
+       WHERE p.post_id = $1`,
       [postId]
     );
     
@@ -311,8 +319,10 @@ export const deletePost = async (req, res) => {
     }
     
     const postAuthorId = postResult.rows[0].author_id;
+    const postAuthorSub = postResult.rows[0].cognito_sub;
     
-    if (postAuthorId !== userId && userRole !== 'admin') {
+    // Check if user is post owner or admin
+    if (postAuthorSub !== userSub && !isAdmin) {
       return res.status(403).json({ success: false, error: 'Forbidden: You can only delete your own posts' });
     }
     

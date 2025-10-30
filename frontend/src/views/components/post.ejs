@@ -28,19 +28,21 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
       </div>
     </div>
     
-    <details class="relative dropdown">
-      <summary
+    <div class="relative dropdown">
+      <button
+        type="button"
         class="flex items-center justify-center w-8 h-8 text-gray-400 cursor-pointer hover:text-white transition-colors rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-400"
         role="button"
         aria-label="Post actions"
+        onclick="togglePostDropdown(this)"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="1"></circle>
           <circle cx="12" cy="5" r="1"></circle>
           <circle cx="12" cy="19" r="1"></circle>
         </svg>
-      </summary>
-      <div class="absolute right-0 mt-2 w-44 bg-[#1f2a50] border border-gray-700 rounded-lg shadow-lg py-2 z-10">
+      </button>
+      <div class="absolute right-0 mt-2 w-44 bg-[#1f2a50] border border-gray-700 rounded-lg shadow-lg py-2 z-10 hidden">
         <% if (typeof id !== 'undefined') { %>
           <button
             type="button"
@@ -61,7 +63,7 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
           </button>
           <% } %>
         </div>
-      </details>
+      </div>
   </header>
 
   <!-- Post Content -->
@@ -158,24 +160,13 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
       })
       .then(data => {
         if (data.success) {
-          // Try to remove the post element from the DOM
-          const postElement = document.querySelector(`[data-post-id="${postId}"]`);
-          if (postElement) {
-            // Add fade out animation
-            postElement.style.transition = 'opacity 0.3s ease-out';
-            postElement.style.opacity = '0';
-            
-            // Remove after animation
-            setTimeout(() => {
-              postElement.remove();
-              
-              // Show success message
-              showNotification('Post deleted successfully', 'success');
-            }, 300);
-          } else {
-            // Fallback: reload the page if we can't find the element
+          // Show success message and reload the page to ensure data consistency
+          showNotification('Post deleted successfully', 'success');
+          
+          // Reload the page after a short delay to show the notification
+          setTimeout(() => {
             window.location.reload();
-          }
+          }, 1000);
         } else {
           throw new Error(data.error || 'Unknown error occurred');
         }
@@ -371,11 +362,46 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
     });
   }
   
+  /**
+   * Toggle post dropdown menu
+   * @param {HTMLElement} button - The button that was clicked
+   */
+  function togglePostDropdown(button) {
+    const dropdown = button.nextElementSibling;
+    const isHidden = dropdown.classList.contains('hidden');
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown > div:last-child').forEach(d => {
+      if (d !== dropdown) {
+        d.classList.add('hidden');
+      }
+    });
+    
+    // Toggle current dropdown
+    if (isHidden) {
+      dropdown.classList.remove('hidden');
+    } else {
+      dropdown.classList.add('hidden');
+    }
+  }
+  
+  /**
+   * Close dropdowns when clicking outside
+   */
+  document.addEventListener('click', function(event) {
+    if (!event.target.closest('.dropdown')) {
+      document.querySelectorAll('.dropdown > div:last-child').forEach(d => {
+        d.classList.add('hidden');
+      });
+    }
+  });
+  
   // Make functions available globally
   window.deletePost = deletePost;
   window.showReportDialog = showReportDialog;
   window.closeReportDialog = closeReportDialog;
   window.submitReport = submitReport;
+  window.togglePostDropdown = togglePostDropdown;
   
   // Initialize Feather Icons for this component
   if (window.feather && typeof window.feather.replace === 'function') {
