@@ -55,15 +55,35 @@ function normalizeMediaEntries(rawMedia) {
   return [];
 }
 
+function sanitizeMediaUrl(url) {
+  if (typeof url !== 'string' || !url.trim()) return null;
+
+  const trimmed = url.trim();
+
+  try {
+    // Attempt to construct a URL object to normalize things like spaces
+    const normalized = new URL(trimmed);
+    // Rebuild to ensure proper encoding without mutating the origin
+    return normalized.toString();
+  } catch {
+    try {
+      return encodeURI(trimmed);
+    } catch {
+      return null;
+    }
+  }
+}
+
 function extractMediaUrls(mediaEntries = []) {
   return mediaEntries
     .map((entry) => {
       if (!entry) return null;
       if (typeof entry === 'string') {
-        return entry.startsWith('http') ? entry : null;
+        return entry.startsWith('http') ? sanitizeMediaUrl(entry) : null;
       }
       if (typeof entry === 'object') {
-        return entry.s3_url || entry.url || null;
+        const rawUrl = entry.s3_url || entry.url || entry.thumbnail_url || null;
+        return sanitizeMediaUrl(rawUrl);
       }
       return null;
     })
@@ -82,11 +102,28 @@ export const getUnifiedFeed = async (options = {}) => {
     category = null,
     searchTerm = null,
     authorId = null,
-    groupId = null
+    groupId = null,
+    statuses = ['published']
   } = options;
 
-  const conditions = [`p.status = 'published'::post_status`];
+  const trimmedStatuses = Array.isArray(statuses)
+    ? Array.from(new Set(statuses.map((status) => (typeof status === 'string' ? status.trim() : '')).filter(Boolean)))
+    : [];
+
+  const effectiveStatuses = trimmedStatuses.length ? trimmedStatuses : ['published'];
+
+  const conditions = [];
   const values = [];
+
+  if (effectiveStatuses.length === 1) {
+    values.push(effectiveStatuses[0]);
+    const idx = values.length;
+    conditions.push(`p.status = $${idx}::post_status`);
+  } else {
+    values.push(effectiveStatuses);
+    const idx = values.length;
+    conditions.push(`p.status = ANY($${idx}::post_status[])`);
+  }
 
   // Add category filter
   if (category && CATEGORY_MAP[category]) {
@@ -166,7 +203,7 @@ export const getUnifiedFeed = async (options = {}) => {
       FROM likes l
       WHERE l.post_id = p.post_id
     ) l ON true
-    WHERE ${conditions.join(' AND ')}
+  WHERE ${conditions.length ? conditions.join(' AND ') : 'TRUE'}
     ORDER BY COALESCE(p.published_at, p.created_at) DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;

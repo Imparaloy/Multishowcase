@@ -8,7 +8,10 @@ import {
 } from "../utils/session-user.js";
 
 async function fetchPostsForUser(userRecord) {
-  const posts = await getUnifiedFeed({ authorId: userRecord.user_id });
+  const posts = await getUnifiedFeed({
+    authorId: userRecord.user_id,
+    statuses: ['published', 'unpublish']
+  });
   
   return posts.map((row) => {
     const primaryMedia = row.media && row.media.length ? row.media[0] : null;

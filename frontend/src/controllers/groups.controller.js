@@ -217,7 +217,10 @@ export async function renderGroupDetailsPage(req, res) {
     const members = Array.isArray(group.members) ? group.members : [];
     const isMember = currentUser ? members.some((m) => m.user_id === currentUser.user_id) : false;
 
-    const posts = await getUnifiedFeed({ groupId: id });
+    const posts = await getUnifiedFeed({
+      groupId: id,
+      statuses: ['published', 'unpublish']
+    });
 
     const pendingRequests = [];
     const tagMap = Object.fromEntries(TAG_LIST.map(t => [t.slug, t.label]));
