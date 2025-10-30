@@ -59,8 +59,18 @@
         <div class="p-4 space-y-4">
           <% if (feed && feed.length) { %>
             <% feed.forEach(post => { %>
-              <div data-post-id="<%= post.id %>">
-                <%- include('components/post', post) %>
+              <div data-post-id="<%= post.post_id || post.id %>">
+                <%- include('components/post', {
+                  id: post.post_id || post.id,
+                  name: post.author_display_name || post.name || post.display_name,
+                  username: post.author_username || post.username,
+                  body: post.body || post.content || '',
+                  media: Array.isArray(post.media) ? post.media.map(m => (m && m.s3_url) ? m.s3_url : null).filter(Boolean) : [],
+                  comments: post.comments || 0,
+                  likes: post.likes || 0,
+                  primaryMedia: null,
+                  canDelete: false
+                }) %>
               </div>
             <% }) %>
           <% } else { %>

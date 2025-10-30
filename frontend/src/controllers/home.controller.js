@@ -29,15 +29,10 @@ SELECT
   COALESCE(u.display_name, u.username) AS author_display_name,
   COALESCE(
     json_agg(
-      jsonb_build_object(
-        'media_id',     pm.media_id,
+        jsonb_build_object(
+        'media_id',     pm.post_media_id,
         'media_type',   pm.media_type,
-        's3_key',       pm.s3_key,
-        's3_url',       pm.s3_url,
-        'order_index',  pm.order_index,
-        'filename',     pm.original_filename,
-        'file_size',    pm.file_size,
-        'content_type', pm.content_type
+        'order_index',  pm.order_index
       )
       ORDER BY pm.order_index NULLS LAST
     ) FILTER (WHERE pm.media_id IS NOT NULL),
