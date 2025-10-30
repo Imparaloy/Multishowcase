@@ -12,43 +12,56 @@ function fallbackEmailFromSub(sub) {
   return `user-${sub}@placeholder.local`;
 }
 
-async function resolveAuthorId(client, user) {
-  if (!user?.sub) {
-    throw new Error('Missing Cognito subject on request user');
-  }
+async function resolveAuthorId(client, claims) {
+  if (!claims?.sub) throw new Error('Missing Cognito subject (sub)');
 
-  const username = user.username || user.email || user.sub;
-  const displayName = user.payload?.name || username;
-  const email = user.email || fallbackEmailFromSub(user.sub);
+  const username =
+    claims['cognito:username'] ||
+    claims.username ||
+    `user_${claims.sub.slice(0, 8)}`;
 
-  const result = await client.query(
-    `INSERT INTO users (cognito_sub, username, display_name, email)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (cognito_sub) DO UPDATE
-     SET username = EXCLUDED.username,
-         display_name = EXCLUDED.display_name,
-         email = EXCLUDED.email,
-         updated_at = now()
-     RETURNING user_id`,
-    [user.sub, username, displayName, email]
+  const email =
+    claims.email ||
+    `${username}@example.invalid`; // fallback กัน NOT NULL
+
+  const displayName = claims.name || username;
+
+  const { rows } = await client.query(
+    `
+    INSERT INTO users (cognito_sub, username, email, display_name)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (cognito_sub) DO UPDATE
+      SET username = EXCLUDED.username,
+          email = COALESCE(EXCLUDED.email, users.email),
+          display_name = COALESCE(EXCLUDED.display_name, users.display_name)
+    RETURNING user_id
+    `,
+    [claims.sub, username, email, displayName]
   );
-
-  return result.rows[0].user_id;
+  return rows[0].user_id; // UUID
 }
+
 
 export const createPost = async (req, res) => {
   const client = await pool.connect();
-  
   try {
     await client.query('BEGIN');
 
-    const authorId = await resolveAuthorId(client, req.user).catch((err) => {
-      throw Object.assign(new Error('Unauthorized: Unable to resolve user'), { cause: err });
-    });
-    // Parse and validate inputs
-    const { title, content, status, category: categoryInput, group_id, mediaFiles } = req.body; // mediaFiles: array of { key, filename, filetype, fileSize }
-    const tags = req.body.tags ? req.body.tags.split(',') : [];
-    
+    if (!req.user || !req.user.sub) {
+      throw new Error('Unauthorized: missing req.user.sub');
+    }
+    const authorId = await resolveAuthorId(client, req.user);
+
+    const title = (req.body.title || '').trim() || null;
+    const content = (req.body.content || '').trim() || null;
+
+    // status → ENUM post_status ('published' | 'unpublish')
+    const normalizedStatus =
+      req.body.status === 'published' ? 'published' : 'unpublish';
+    const publishedAt =
+      normalizedStatus === 'published' ? new Date() : null;
+
+    // category → map slug → ENUM post_category (ระวังตัวพิมพ์/ช่องว่าง)
     const categoryMap = {
       '2d-art': '2D art',
       '3d-model': '3D model',
@@ -57,52 +70,88 @@ export const createPost = async (req, res) => {
       'game': 'Game',
       'ux-ui': 'UX/UI design'
     };
+    const categoryInput = (req.body.category || '').toLowerCase();
+    const categoryEnum = categoryMap[categoryInput] || '2D art';
 
-    // Determine category
-    let category = '2D art';
-    if (categoryInput && categoryMap[categoryInput]) {
-      category = categoryMap[categoryInput];
-    } else if (tags.length > 0 && categoryMap[tags[0]]) {
-      category = categoryMap[tags[0]];
+    // group_id → UUID หรือ null
+    const groupId = (typeof req.body.group_id === 'string' && /^[0-9a-f-]{36}$/i.test(req.body.group_id))
+      ? req.body.group_id
+      : null;
+
+    // mediaFiles → array|json string
+    let mediaFiles = [];
+    if (Array.isArray(req.body.mediaFiles)) {
+      mediaFiles = req.body.mediaFiles;
+    } else if (typeof req.body.mediaFiles === 'string' && req.body.mediaFiles.trim() !== '') {
+      try { mediaFiles = JSON.parse(req.body.mediaFiles); } catch { mediaFiles = []; }
     }
 
-    // Validate status and published_at
-    const normalizedStatus = (status === 'published' || status === 'unpublish') ? status : 'unpublish';
-    const publishedAt = normalizedStatus === 'published' ? new Date() : null;
-
-    // Validate group_id (UUID) or set null
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const groupId = typeof group_id === 'string' && uuidRegex.test(group_id) ? group_id : null;
-
-    // If media files provided, verify they exist in S3 first
-    let parsedMediaFiles = [];
-    if (mediaFiles && mediaFiles.length > 0) {
-      const raw = typeof mediaFiles === 'string' ? JSON.parse(mediaFiles) : mediaFiles;
-      parsedMediaFiles = Array.isArray(raw) ? raw : [raw];
-
-      // Determine username for default key construction
-      const claims = req.user || {};
-      const targetUsername = claims.username || claims['cognito:username'] || claims.email || claims.sub || 'anonymous';
-
-      // Ensure each item has a key; if not, synthesize one to match presign pattern
-      parsedMediaFiles = parsedMediaFiles.map((mf) => ({
-        ...mf,
-        key: mf.key || `users/${targetUsername}/uploads/${Date.now()}_${path.basename(mf.filename || 'file')}`,
-      }));
-
-      // Verify S3 objects exist
-      const checks = await Promise.all(
-        parsedMediaFiles.map((mf) => headObjectExists(mf.key))
-      );
-      const missing = parsedMediaFiles
-        .filter((_, i) => !checks[i])
-        .map((mf) => mf.key);
-
+    // (ถ้ามี S3 check) ตรวจ key มีอยู่จริงก่อนบันทึก
+    if (mediaFiles.length > 0) {
+      const checks = await Promise.all(mediaFiles.map((mf) => headObjectExists(mf.key)));
+      const missing = mediaFiles.filter((_, i) => !checks[i]).map((mf) => mf.key);
       if (missing.length > 0) {
-        // Fail fast and rollback
-        throw Object.assign(new Error('Some media files not found in S3'), { missingKeys: missing });
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, error: 'Some media files not found in S3', missingKeys: missing });
       }
     }
+
+    // INSERT posts (cast ENUM ให้ชัดเจน)
+    const postResult = await client.query(
+      `
+      INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
+      VALUES ($1, $2, $3, $4::post_status, $5, $6::post_category, $7)
+      RETURNING post_id
+      `,
+      [authorId, title, content, normalizedStatus, publishedAt, categoryEnum, groupId]
+    );
+    const postId = postResult.rows[0].post_id;
+
+    // INSERT post_media
+    if (mediaFiles.length > 0) {
+      for (let i = 0; i < mediaFiles.length; i++) {
+        const mf = mediaFiles[i];
+        const s3Key = mf.key;
+        const s3Url = publicUrlForKey(s3Key);
+        await client.query(
+          `
+          INSERT INTO post_media
+          (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `,
+          [
+            postId,
+            mf.media_type || 'image',
+            mf.order_index ?? i,
+            s3Key,
+            s3Url,
+            mf.filename || null,
+            mf.fileSize || null,
+            mf.filetype || 'image/jpeg'
+          ]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.status(201).json({
+      success: true,
+      postId,
+      status: normalizedStatus,
+      publishedAt,
+      category: categoryEnum,
+      mediaCount: mediaFiles.length,
+      message: 'Post created successfully'
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating post:', err);
+    return res.status(500).json({ success: false, error: err.message });
+  } finally {
+    client.release();
+  }
+};
+
 
     // Insert post
     const postResult = await client.query(

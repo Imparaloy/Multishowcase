@@ -14,7 +14,7 @@ const pool = new Pool({
   port: process.env.PGPORT || 5432,
   ssl: process.env.NODE_ENV === 'production'
   ? { rejectUnauthorized: false }
-  : false
+  : false,
 });
 
 // ทดสอบการเชื่อมต่อ
