@@ -1,4 +1,4 @@
-pro// frontend/src/controllers/posts.controller.js
+// frontend/src/controllers/posts.controller.js
 import pool from '../config/dbconn.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
