@@ -168,7 +168,7 @@ export const createPost = async (req, res) => {
       for (let idx = 0; idx < parsedMediaFiles.length; idx++) {
         const mediaFile = parsedMediaFiles[idx];
         const s3Key = mediaFile.key;
-  const s3Url = publicUrlForKey(s3Key);
+    const s3Url = publicUrlForKey(s3Key);
         await client.query(
           `INSERT INTO post_media (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type) 
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
@@ -197,26 +197,6 @@ export const createPost = async (req, res) => {
       mediaCount: parsedMediaFiles.length,
       message: 'Post created successfully',
     });
-    
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Error creating post:', err);
-    if (err.missingKeys) {
-      return res.status(400).json({
-        success: false,
-        error: 'Some media files were not uploaded to S3',
-        missingKeys: err.missingKeys,
-      });
-    }
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to create post',
-      details: err.message 
-    });
-  } finally {
-    client.release();
-  }
-};
 
 export const deletePost = async (req, res) => {
   const client = await pool.connect();

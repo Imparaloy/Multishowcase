@@ -1,13 +1,11 @@
-import express from 'express';
+// home.routes.js
+import { Router } from 'express';
 import { getForYouPosts, getFollowingPosts } from '../controllers/home.controller.js';
-import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate.js';
-const router = express.Router();
+import { authenticateCognitoJWT, requireAuth } from '../middleware/auth.js';
 
-// Home (For you)
-router.get('/', authenticateCognitoJWT, requireAuth, getForYouPosts);
+const router = Router();
 
-
-// Following
-router.get('/following', authenticateCognitoJWT, requireAuth, getFollowingPosts);
+router.get('/',           authenticateCognitoJWT, requireAuth, getForYouPosts);
+router.get('/following',  authenticateCognitoJWT, requireAuth, getFollowingPosts);
 
 export default router;

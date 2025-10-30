@@ -1,34 +1,79 @@
-// src/controllers/home.controller.js
-import { currentUser, forYouPosts, followingPosts } from '../data/mock.js';
+// home.controller.js
 import pool from '../config/dbconn.js';
 
-// For now, use mock data directly since database is not available
-// In production, this would fetch from the database
+// หา user ปัจจุบันจาก JWT
+async function loadCurrentUser(req) {
+  const claims = req.user || {};
+  if (claims.user_id) {
+    const { rows } = await pool.query('SELECT * FROM users WHERE user_id = $1', [claims.user_id]);
+    return rows[0] || null;
+  }
+  if (claims.sub) {
+    const { rows } = await pool.query('SELECT * FROM users WHERE cognito_sub = $1', [claims.sub]);
+    return rows[0] || null;
+  }
+  return null;
+}
+
+const BASE_FEED_SQL = `
+SELECT
+  p.post_id,
+  p.title,
+  p.body,
+  p.category,
+  p.status,
+  p.published_at,
+  p.created_at,
+  u.user_id       AS author_id,
+  u.username      AS author_username,
+  COALESCE(u.display_name, u.username) AS author_display_name,
+  u.avatar_url    AS author_avatar,
+  COALESCE(
+    json_agg(
+      jsonb_build_object(
+        'media_id',     pm.media_id,
+        'media_type',   pm.media_type,
+        's3_key',       pm.s3_key,
+        's3_url',       pm.s3_url,
+        'order_index',  pm.order_index,
+        'filename',     pm.original_filename,
+        'file_size',    pm.file_size,
+        'content_type', pm.content_type
+      )
+      ORDER BY pm.order_index NULLS LAST
+    ) FILTER (WHERE pm.media_id IS NOT NULL),
+    '[]'
+  ) AS media
+FROM posts p
+JOIN users u ON u.user_id = p.author_id
+LEFT JOIN post_media pm ON pm.post_id = p.post_id
+WHERE p.status = 'published'::post_status
+GROUP BY
+  p.post_id, p.title, p.body, p.category, p.status, p.published_at, p.created_at,
+  u.user_id, u.username, u.display_name, u.avatar_url
+ORDER BY COALESCE(p.published_at, p.created_at) DESC
+LIMIT $1 OFFSET $2
+`;
+
 export const getForYouPosts = async (req, res) => {
   try {
-    const claims = req.user || {};
-    let user = null;
+    const currentUser = await loadCurrentUser(req);
+    if (!currentUser) return res.redirect('/login');
 
-    if (claims.user_id) {
-      const { rows } = await pool.query('SELECT * FROM users WHERE user_id = $1', [claims.user_id]);
-      user = rows[0] || null;
-    } else if (claims.sub) {
-      // เผื่อใช้ Cognito sub map กับตาราง users.cognito_sub
-      const { rows } = await pool.query('SELECT * FROM users WHERE cognito_sub = $1', [claims.sub]);
-      user = rows[0] || null;
-    }
+    const limit = Math.min(parseInt(req.query.limit || '10', 10), 50);
+    const page  = Math.max(parseInt(req.query.page  || '1', 10), 1);
+    const offset = (page - 1) * limit;
 
-    if (!user) {
-      // ยังไม่มี user ใน DB หรือยังไม่ได้ login จริง ๆ
-      return res.redirect('/login');
-    }
+    const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
 
-    // TODO: ดึง feed จริงจาก DB ทีหลัง ตอนนี้ส่ง mock/feed ที่คุณมีอยู่ก็ได้
     return res.render('home', {
       activeTab: 'foryou',
-      feed: [],            // หรือ forYouPosts (mock) ของคุณ
-      currentUser: user,
+      feed: rows,
+      currentUser,
       activePage: 'home',
+      page,
+      limit,
+      hasMore: rows.length === limit
     });
   } catch (err) {
     console.error('getForYouPosts error:', err);
@@ -36,21 +81,29 @@ export const getForYouPosts = async (req, res) => {
   }
 };
 
-
 export const getFollowingPosts = async (req, res) => {
   try {
-    const userId = req.user?.user_id;
+    const currentUser = await loadCurrentUser(req);
+    if (!currentUser) return res.redirect('/login');
 
-    const userResult = await pool.query('SELECT * FROM users WHERE user_id = $1', [userId]);
-    const user = userResult.rows[0];
+    const limit = Math.min(parseInt(req.query.limit || '10', 10), 50);
+    const page  = Math.max(parseInt(req.query.page  || '1', 10), 1);
+    const offset = (page - 1) * limit;
 
-    res.render('home', {
+    // TODO: ถ้ามีตาราง follows ให้เปลี่ยน WHERE ให้เหลือเฉพาะ author ที่ currentUser ติดตาม
+    const { rows } = await pool.query(BASE_FEED_SQL, [limit, offset]);
+
+    return res.render('home', {
       activeTab: 'following',
-      feed: followingPosts,
-      currentUser: user,
+      feed: rows,
+      currentUser,
       activePage: 'home',
+      page,
+      limit,
+      hasMore: rows.length === limit
     });
   } catch (err) {
-    res.status(500).send('Database error');
+    console.error('getFollowingPosts error:', err);
+    return res.status(500).send('Database error');
   }
 };
