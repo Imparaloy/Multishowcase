@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Confirm Sign Up</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body class="bg-[#0f1533] text-white font-sans">
+    <div class="max-w-md mx-auto mt-24">
+      <div class="bg-[#182244] p-6 rounded-lg border border-gray-700">
+        <h1 class="text-2xl font-bold mb-4">Confirm Sign Up</h1>
+        <% if (typeof error !== 'undefined' && error) { %>
+          <div class="mb-4 text-red-400"><%= error %></div>
+        <% } %>
+        <% if (typeof message !== 'undefined' && message) { %>
+          <div class="mb-4 text-green-400"><%= message %></div>
+        <% } %>
+        <form method="post" action="/confirm" class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-300">Username</label>
+            <input name="username" required class="w-full mt-1 p-2 rounded bg-[#0f1730] border border-gray-700 text-white" />
+          </div>
+          <div>
+            <label class="block text-sm text-gray-300">Confirmation Code</label>
+            <input name="code" required class="w-full mt-1 p-2 rounded bg-[#0f1730] border border-gray-700 text-white" />
+          </div>
+          <div>
+            <button type="submit" class="w-full py-2 rounded bg-purple-600 hover:bg-purple-700">Confirm</button>
+          </div>
+        </form>
+        <p class="mt-4 text-sm text-gray-400">If you didn't receive the code, check your email or try signing up again.</p>
+      </div>
+    </div>
+  </body>
+</html>

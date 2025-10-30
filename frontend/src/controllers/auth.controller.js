@@ -10,6 +10,7 @@ import { cognitoClient, secretHash } from "../services/cognito.service.js";
 import axios from "axios";
 import { stringify } from "querystring";
 import pool from "../config/dbconn.js";
+import { confirmSignUp } from '../services/cognito.service.js';
 
 /* ---------- Views ---------- */
 export function renderSignup(req, res) {
@@ -17,6 +18,23 @@ export function renderSignup(req, res) {
 }
 export function renderLogin(req, res) {
   res.render("login", { title: "Log In" });
+}
+export function renderConfirm(req, res) {
+  return res.render('confirm', { title: 'Confirm Sign Up' });
+}
+
+export async function confirm(req, res) {
+  const { username, code } = req.body || {};
+  if (!username || !code) {
+    return res.status(400).render('confirm', { title: 'Confirm Sign Up', error: 'กรุณากรอก username และ confirmation code' });
+  }
+  try {
+    await confirmSignUp({ username, code });
+    return res.render('login', { title: 'Log In', message: 'Account confirmed. You can log in now.' });
+  } catch (err) {
+    console.error('Confirm sign up failed:', err);
+    return res.status(400).render('confirm', { title: 'Confirm Sign Up', error: err?.message || 'Confirm failed' });
+  }
 }
 
 /* ---------- Helpers ---------- */
