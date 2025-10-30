@@ -45,6 +45,12 @@ function extractToken(req) {
   return header.startsWith('Bearer ') ? header.slice(7).trim() : null;
 }
 
+// Helper: decide if this request expects an HTML page (vs JSON/API)
+function wantsHTML(req) {
+  const accept = req.headers.accept || '';
+  return accept.includes('text/html');
+}
+
 function buildUserFromPayload(payload) {
   return {
     sub: payload.sub,
@@ -77,6 +83,11 @@ async function authenticateCognitoJWT(req, res, next) {
   try {
     const token = extractToken(req);
     if (!token) {
+      // Redirect to login for page requests, 401 JSON for API requests
+      if (wantsHTML(req)) {
+        const nextUrl = encodeURIComponent(req.originalUrl || '/');
+        return res.redirect(302, `/login?next=${nextUrl}`);
+      }
       return res.status(401).json({ message: 'No token provided' });
     }
 
@@ -86,12 +97,22 @@ async function authenticateCognitoJWT(req, res, next) {
     return next();
   } catch (err) {
     console.error('JWT verify failed:', err?.message || err);
+    if (wantsHTML(req)) {
+      const nextUrl = encodeURIComponent(req.originalUrl || '/');
+      return res.redirect(302, `/login?next=${nextUrl}`);
+    }
     return res.status(401).json({ message: 'Invalid token' });
   }
 }
 
 function requireAuth(req, res, next) {
-  if (!req.user) return res.status(401).json({ message: 'Unauthorized' });
+  if (!req.user) {
+    if (wantsHTML(req)) {
+      const nextUrl = encodeURIComponent(req.originalUrl || '/');
+      return res.redirect(302, `/login?next=${nextUrl}`);
+    }
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
   return next();
 }
 

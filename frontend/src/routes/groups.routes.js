@@ -8,12 +8,12 @@ import {
   deleteGroupHandler,
   createGroupPost
 } from '../controllers/groups.controller.js';
-// import { authenticateCognitoJWT } from '../middlewares/authenticate.js';
+import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate.js';
 
 const router = express.Router();
 
 // แสดงกลุ่มทั้งหมด
-router.get('/groups', renderGroupsPage);
+router.get('/groups', requireAuth, renderGroupsPage);
 
 // แสดงรายละเอียดกลุ่ม
 router.get('/groups/:id', renderGroupDetailsPage);
