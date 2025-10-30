@@ -16,7 +16,7 @@ export const createReport = async (req, res) => {
     }
     
     // Get reporter ID from session or authenticated user
-    const reporterId = req.user?.username || 'anonymous';
+    const reporterId = req.user?.username || req.user?.['cognito:username'] || 'anonymous';
     
     // Insert report into database
     const query = `
@@ -51,7 +51,7 @@ export const createReport = async (req, res) => {
 export const getAllReports = async (req, res) => {
   try {
     // Check if user is admin
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !req.user.groups?.includes('admin')) {
       return res.status(403).json({
         success: false,
         error: 'Access denied. Admin privileges required.'
@@ -86,7 +86,7 @@ export const getAllReports = async (req, res) => {
 export const updateReportStatus = async (req, res) => {
   try {
     // Check if user is admin
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || !req.user.groups?.includes('admin')) {
       return res.status(403).json({
         success: false,
         error: 'Access denied. Admin privileges required.'
@@ -112,7 +112,7 @@ export const updateReportStatus = async (req, res) => {
       RETURNING *
     `;
     
-    const values = [status, reviewNotes || null, req.user.username, reportId];
+    const values = [status, reviewNotes || null, req.user?.username || req.user?.['cognito:username'], reportId];
     const result = await pool.query(query, values);
     
     if (result.rows.length === 0) {
