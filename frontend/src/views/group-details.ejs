@@ -207,7 +207,7 @@
 											// Check if current user can delete this post
 											const canDeletePost = isOwner || ((post.author_username || post.username) === currentUser?.username);
 										%>
-										<div data-post-id="<%= post.id %>">
+										<div data-post-id="<%= post.post_id || post.id %>">
 											<%- include('components/post', {
 												id: post.post_id || post.id,
 												name: post.author_display_name || post.name || post.author_username,

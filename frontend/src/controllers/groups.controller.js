@@ -2,9 +2,34 @@ import pool from '../config/dbconn.js';
 import TAG_LIST from '../data/tags.js';
 import { getUnifiedFeed } from './feed.controller.js';
 
+async function loadCurrentUser(req) {
+  const claims = req.user || {};
+  if (!claims) return null;
+
+  let record = null;
+
+  if (claims.user_id) {
+    const { rows } = await pool.query('SELECT * FROM users WHERE user_id = $1', [claims.user_id]);
+    record = rows[0] || null;
+  }
+
+  if (!record && claims.sub) {
+    const { rows } = await pool.query('SELECT * FROM users WHERE cognito_sub = $1', [claims.sub]);
+    record = rows[0] || null;
+  }
+
+  if (record) {
+    return { ...record, groups: claims.groups || [] };
+  }
+
+  return null;
+}
+
 // แสดงหน้า groups ทั้งหมด
 export async function renderGroupsPage(req, res) {
   try {
+    const currentUser = await loadCurrentUser(req);
+
     const groupsRes = await pool.query(`
       SELECT g.*, u.display_name AS owner_name
       FROM groups g
@@ -12,8 +37,14 @@ export async function renderGroupsPage(req, res) {
       ORDER BY g.created_at DESC
     `);
     const groups = groupsRes.rows;
-  const currentUser = req.user;
-  return res.render('groups', { title: 'Groups', groups, currentUser, activePage: 'groups', exploreTags: TAG_LIST });
+
+    return res.render('groups', {
+      title: 'Groups',
+      groups,
+      currentUser,
+      activePage: 'groups',
+      exploreTags: TAG_LIST
+    });
   } catch (e) {
     console.error('Failed to load groups:', e);
     return res.status(500).send('Failed to load groups');
@@ -27,7 +58,8 @@ export async function createGroup(req, res) {
     if (!name || String(name).trim().length === 0) {
       return res.status(400).json({ ok: false, message: 'กรุณากรอกชื่อกลุ่ม' });
     }
-    const owner_id = req.user?.user_id;
+    const currentUser = await loadCurrentUser(req);
+    const owner_id = currentUser?.user_id;
     if (!owner_id) {
       return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     }
@@ -51,6 +83,8 @@ export async function createGroup(req, res) {
 export async function renderGroupDetailsPage(req, res) {
   try {
     const { id } = req.params;
+    const currentUser = await loadCurrentUser(req);
+
     const groupRes = await pool.query(
       `SELECT g.*, u.display_name AS owner_name FROM groups g JOIN users u ON g.owner_id = u.user_id WHERE g.group_id = $1`,
       [id]
@@ -59,15 +93,16 @@ export async function renderGroupDetailsPage(req, res) {
     if (!group) {
       return res.status(404).send('ไม่พบกลุ่ม');
     }
-    const currentUser = req.user;
-    const isOwner = group.owner_id === currentUser.user_id;
+    const isOwner = currentUser ? group.owner_id === currentUser.user_id : false;
     const membersRes = await pool.query(
       `SELECT gm.*, u.username, u.display_name FROM group_members gm JOIN users u ON gm.user_id = u.user_id WHERE gm.group_id = $1`,
       [id]
     );
     const members = membersRes.rows;
-    const isMember = members.some(m => m.user_id === currentUser.user_id);
+    const isMember = currentUser ? members.some(m => m.user_id === currentUser.user_id) : false;
+
     const posts = await getUnifiedFeed({ groupId: id });
+
     const pendingRequests = [];
     const tagMap = Object.fromEntries(TAG_LIST.map(t => [t.slug, t.label]));
     return res.render('group-details', {
@@ -92,7 +127,8 @@ export async function renderGroupDetailsPage(req, res) {
 export async function joinGroupHandler(req, res) {
   try {
     const { id } = req.params; // group_id
-    const user_id = req.user?.user_id;
+    const currentUser = await loadCurrentUser(req);
+    const user_id = currentUser?.user_id;
     if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
     if (check.rowCount > 0) return res.status(400).json({ ok: false, message: 'คุณเป็นสมาชิกอยู่แล้ว' });
@@ -108,7 +144,8 @@ export async function joinGroupHandler(req, res) {
 export async function leaveGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const user_id = req.user?.user_id;
+    const currentUser = await loadCurrentUser(req);
+    const user_id = currentUser?.user_id;
     if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     const result = await pool.query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
     if (result.rowCount === 0) return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่มหรือคุณไม่ได้เป็นสมาชิก' });
@@ -123,7 +160,8 @@ export async function leaveGroupHandler(req, res) {
 export async function deleteGroupHandler(req, res) {
   try {
     const { id } = req.params;
-    const user_id = req.user?.user_id;
+    const currentUser = await loadCurrentUser(req);
+    const user_id = currentUser?.user_id;
     const groupRes = await pool.query('SELECT * FROM groups WHERE group_id = $1', [id]);
     const group = groupRes.rows[0];
     if (!group) return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
@@ -141,7 +179,8 @@ export async function createGroupPost(req, res) {
   try {
     const { id } = req.params; // group_id
     const { title, body, category } = req.body;
-    const author_id = req.user?.user_id;
+    const currentUser = await loadCurrentUser(req);
+    const author_id = currentUser?.user_id;
     if (!author_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, author_id]);
     if (check.rowCount === 0) return res.status(403).json({ ok: false, message: 'คุณไม่ได้เป็นสมาชิกกลุ่มนี้' });
