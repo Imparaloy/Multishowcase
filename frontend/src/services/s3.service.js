@@ -30,6 +30,7 @@ export async function uploadObject({ key, body, contentType }) {
     Key: key,
     Body: body,
     ContentType: contentType,
+    ACL: 'public-read',
   });
   await client.send(cmd);
   return publicUrlForKey(key);
@@ -49,4 +50,9 @@ export async function headObjectExists(key) {
 // Build a public URL for a given key (virtual-hosted–style)
 export function publicUrlForKey(key) {
   return `https://${BUCKET}.s3.amazonaws.com/${key}`;
+}
+
+export async function getPresignedGetUrl({ key, expiresIn = 300 }) {
+  const cmd = new GetObjectCommand({ Bucket: BUCKET, Key: key });
+  return getSignedUrl(client, cmd, { expiresIn });
 }
