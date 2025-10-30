@@ -41,6 +41,16 @@ export async function confirm(req, res) {
 export async function signup(req, res) {
   const { username, password, email, name: display_name } = req.body;
 
+  // Validate password strength
+  if (
+    typeof password !== 'string' ||
+    !password.trim() ||
+    /^\s|\s$/.test(password) ||
+    /\s/.test(password)
+  ) {
+    return res.status(400).json({ ok: false, message: "Password must not contain spaces and cannot be empty." });
+  }
+
   try {
     // 1) ตรวจสอบว่าอีเมลซ้ำใน PostgreSQL หรือไม่
     const emailCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
