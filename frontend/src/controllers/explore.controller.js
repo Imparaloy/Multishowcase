@@ -152,6 +152,11 @@ async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset }) {
   `;
 
   const { rows } = await pool.query(text, values);
+    if (rows.length) {
+      const formattedRows = rows.map(formatPostRow);
+      console.log('Explore feed first media sample:', formattedRows[0].media);
+      return formattedRows;
+    }
   return rows.map(formatPostRow);
 }
 

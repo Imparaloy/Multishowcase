@@ -155,7 +155,14 @@ export async function login(req, res) {
       });
     }
 
-    console.log("Cookies set:", res.getHeaders()["set-cookie"]);
+    const cookies = res.getHeaders()["set-cookie"];
+    if (Array.isArray(cookies)) {
+      console.log("Cookies set:", cookies.map(c => c.slice(0, 30)));
+    } else if (typeof cookies === 'string') {
+      console.log("Cookies set:", cookies.slice(0, 30));
+    } else {
+      console.log("Cookies set:", cookies);
+    }
 
     return res.redirect("/profile?username=" + encodeURIComponent(username));
   } catch (err) {

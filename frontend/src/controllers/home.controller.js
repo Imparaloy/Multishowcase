@@ -73,6 +73,9 @@ export const getForYouPosts = async (req, res) => {
       }
       return { ...row, media };
     });
+    if (feed.length) {
+      console.log('Home feed first media sample:', feed[0].media);
+    }
     return res.render('home', {
       activeTab: 'foryou',
       feed,
@@ -106,6 +109,9 @@ export const getFollowingPosts = async (req, res) => {
       }
       return { ...row, media };
     });
+    if (feed.length) {
+      console.log('Following feed first media sample:', feed[0].media);
+    }
     return res.render('home', {
       activeTab: 'following',
       feed,

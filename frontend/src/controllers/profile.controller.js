@@ -153,6 +153,9 @@ export async function renderProfilePage(req, res) {
       userRecord = await ensureUserRecord(client, req.user);
       if (userRecord) {
         feed = await fetchPostsForUser(client, userRecord);
+        if (feed.length) {
+          console.log('Profile feed first media sample:', feed[0].media);
+        }
       }
     } catch (error) {
       console.error("Error loading profile feed:", error);
