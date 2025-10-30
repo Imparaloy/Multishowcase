@@ -27,6 +27,8 @@
               name: post.name,
               username: post.username,
               content: post.content,
+              media: Array.isArray(post.media) ? post.media : (post.media ? [post.media] : []),
+              primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
               comments: post.comments,
               likes: post.likes,
               currentUser: typeof currentUser !== 'undefined' ? currentUser : null
@@ -51,6 +53,8 @@
                   name: comment.name,
                   username: comment.username,
                   content: comment.content,
+                  media: Array.isArray(comment.media) ? comment.media : (comment.media ? [comment.media] : []),
+                  primaryMedia: comment.primaryMedia || (Array.isArray(comment.media) && comment.media.length ? comment.media[0] : null),
                   comments: comment.comments,
                   likes: comment.likes,
                   currentUser: typeof currentUser !== 'undefined' ? currentUser : null
