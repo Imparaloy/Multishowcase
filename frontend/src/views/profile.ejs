@@ -95,7 +95,8 @@
 									media: Array.isArray(post.media) ? post.media.map(m => (m && m.s3_url) ? m.s3_url : null).filter(Boolean) : [],
 									comments: post.comments || 0,
 									likes: post.likes || 0,
-									primaryMedia: null
+									primaryMedia: null,
+									currentUser: typeof currentUser !== 'undefined' ? currentUser : null
 								}) %>
 							</div>
 						<% }) %>

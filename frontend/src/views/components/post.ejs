@@ -6,6 +6,9 @@ const isAdmin = userContext && Array.isArray(userContext.groups) && userContext.
 const canDeleteFromProps = typeof canDelete !== 'undefined' ? canDelete : null;
 const canDeletePost = canDeleteFromProps !== null ? canDeleteFromProps : (isOwner || isAdmin);
 
+// Get the post ID from the parent element's data attribute
+const postIdFromElement = typeof id !== 'undefined' ? id : null;
+
 // Content processing
 const textContent = typeof content === 'string' ? content.trim() : (typeof body === 'string' ? body.trim() : '');
 const rawMediaList = Array.isArray(media) ? media.filter(Boolean) : [];
@@ -160,13 +163,29 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
       })
       .then(data => {
         if (data.success) {
-          // Show success message and reload the page to ensure data consistency
-          showNotification('Post deleted successfully', 'success');
+          // Remove post element with animation - use the postId from the element's data attribute
+          const postElement = document.querySelector(`[data-post-id="${postId}"]`);
           
-          // Reload the page after a short delay to show the notification
-          setTimeout(() => {
+          if (postElement) {
+            postElement.style.transition = 'all 0.3s ease-out';
+            postElement.style.opacity = '0';
+            postElement.style.transform = 'scale(0.95)';
+            postElement.style.marginBottom = '0';
+            postElement.style.padding = '0';
+            
+            setTimeout(() => {
+              postElement.style.height = '0';
+              postElement.style.overflow = 'hidden';
+              
+              setTimeout(() => {
+                postElement.remove();
+                showNotification('Post deleted successfully', 'success');
+              }, 300);
+            }, 100);
+          } else {
+            // Fallback: reload page if we can't find the element
             window.location.reload();
-          }, 1000);
+          }
         } else {
           throw new Error(data.error || 'Unknown error occurred');
         }
