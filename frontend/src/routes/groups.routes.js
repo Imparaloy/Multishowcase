@@ -8,30 +8,30 @@ import {
   deleteGroupHandler,
   createGroupPost
 } from '../controllers/groups.controller.js';
-import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate.js';
+import { authenticateCognitoJWT, requireAuth, attachUserToLocals } from '../middlewares/authenticate.js';
 
 const router = express.Router();
 
 // แสดงกลุ่มทั้งหมด
-router.get('/groups', requireAuth, renderGroupsPage);
+router.get('/groups', authenticateCognitoJWT, requireAuth, renderGroupsPage);
 
 // แสดงรายละเอียดกลุ่ม
-router.get('/groups/:id', renderGroupDetailsPage);
+router.get('/groups/:id', attachUserToLocals, renderGroupDetailsPage);
 
 // สร้างกลุ่มใหม่ (อนุญาตให้เรียกได้แม้ไม่ล็อกอิน แต่จะไม่มี createdBy)
-router.post('/groups', /* authenticateCognitoJWT, */ createGroup);
+router.post('/groups', authenticateCognitoJWT, requireAuth, createGroup);
 
 
 // ขอเข้าร่วมกลุ่ม
-router.post('/groups/:id/join', /* authenticateCognitoJWT, */ joinGroupHandler);
+router.post('/groups/:id/join', authenticateCognitoJWT, requireAuth, joinGroupHandler);
 
 // ออกจากกลุ่ม
-router.post('/groups/:id/leave', /* authenticateCognitoJWT, */ leaveGroupHandler);
+router.post('/groups/:id/leave', authenticateCognitoJWT, requireAuth, leaveGroupHandler);
 
 // ลบกลุ่ม (เฉพาะเจ้าของ)
-router.delete('/groups/:id', /* authenticateCognitoJWT, */ deleteGroupHandler);
+router.delete('/groups/:id', authenticateCognitoJWT, requireAuth, deleteGroupHandler);
 
 // สร้างโพสต์ในกลุ่ม
-router.post('/groups/:id/posts', /* authenticateCognitoJWT, */ createGroupPost);
+router.post('/groups/:id/posts', authenticateCognitoJWT, requireAuth, createGroupPost);
 
 export default router;
