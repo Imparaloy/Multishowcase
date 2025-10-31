@@ -141,42 +141,44 @@ export async function renderProfilePage(req, res) {
       );
       profileUser = rows[0];
       
-      if (profileUser) {
-        feed = await getUnifiedFeed({
-          authorId: profileUser.user_id,
-          statuses: ['published'],
-          viewerId: userRecord?.user_id
-        });
-        
-        // Map the posts to ensure consistent format
-        feed = feed.map((row) => {
-          const primaryMedia = row.media && row.media.length ? row.media[0] : null;
-          const body = row.body || "";
-
-          return {
-            id: row.post_id,
-            post_id: row.post_id,
-            name: row.author_display_name || profileUser.display_name || profileUser.username,
-            username: row.author_username || profileUser.username,
-            author_display_name: row.author_display_name || profileUser.display_name || profileUser.username,
-            author_username: row.author_username || profileUser.username,
-            title: row.title || "",
-            body,
-            content: body,
-            media: row.media || [],
-            primaryMedia,
-            status: row.status,
-            createdAt: row.created_at,
-            comments: row.comments || 0,
-            likes: row.likes || 0,
-            isFollowing: row.isFollowing || false
-          };
-        });
-        
-        // Get user statistics and check follow status
-        const userStats = await getUserStats(profileUser.user_id);
-        const isFollowingUser = await isFollowing(userRecord?.user_id, profileUser.user_id);
+      if (!profileUser) {
+        return res.status(404).send("User not found");
       }
+
+      feed = await getUnifiedFeed({
+        authorId: profileUser.user_id,
+        statuses: ['published'],
+        viewerId: userRecord?.user_id
+      });
+      
+      // Map the posts to ensure consistent format
+      feed = feed.map((row) => {
+        const primaryMedia = row.media && row.media.length ? row.media[0] : null;
+        const body = row.body || "";
+
+        return {
+          id: row.post_id,
+          post_id: row.post_id,
+          name: row.author_display_name || profileUser.display_name || profileUser.username,
+          username: row.author_username || profileUser.username,
+          author_display_name: row.author_display_name || profileUser.display_name || profileUser.username,
+          author_username: row.author_username || profileUser.username,
+          title: row.title || "",
+          body,
+          content: body,
+          media: row.media || [],
+          primaryMedia,
+          status: row.status,
+          createdAt: row.created_at,
+          comments: row.comments || 0,
+          likes: row.likes || 0,
+          isFollowing: row.isFollowing || false
+        };
+      });
+      
+      // Get user statistics and check follow status
+      const userStats = await getUserStats(profileUser.user_id);
+      const isFollowingUser = await isFollowing(userRecord?.user_id, profileUser.user_id);
       
       const { me, viewer } = buildViewUser(req, userRecord);
 

@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<title><%= meUser.name %> (@<%= meUser.username %>)</title>
+		<title><%= me.name %> (@<%= me.username %>)</title>
 		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		<script src="https://unpkg.com/feather-icons"></script>
 	</head>
@@ -12,30 +12,29 @@
 			<%- include('components/sidebar') %>
 
 			<main class="flex-1 border-x p-2 rounded border-gray-700">
-				<% const meUser = typeof me !== 'undefined' ? me : { name: 'Name', username: 'username' }; %>
 				<% const viewer = typeof currentUser !== 'undefined' ? currentUser : null; %>
-				<% const isOwner = viewer && meUser && viewer.username === meUser.username; %>
+				<% const isOwner = viewer && me && viewer.username === me.username; %>
 
 				<!-- Profile header -->
 				<section class="px-4 pt-6">
 					<div class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60">
 						<div class="flex items-start justify-between gap-4">
 							<div class="flex items-start gap-4">
-								<% if (meUser.avatar_url) { %>
-									<img src="<%= meUser.avatar_url %>" alt="<%= meUser.name %>" class="w-16 h-16 rounded-full object-cover">
+								<% if (me.avatar_url) { %>
+									<img src="<%= me.avatar_url %>" alt="<%= me.name %>" class="w-16 h-16 rounded-full object-cover">
 								<% } else { %>
 									<div class="w-16 h-16 bg-gray-500 rounded-full flex items-center justify-center">
 										<i data-feather="user" class="w-8 h-8 text-gray-300"></i>
 									</div>
 								<% } %>
 								<div>
-									<h1 class="text-2xl font-bold leading-tight"><%= meUser.name %></h1>
-									<p class="text-gray-400">@<%= meUser.username %></p>
-									<% if (meUser.bio) { %>
-										<p class="text-gray-300 mt-2"><%= meUser.bio %></p>
+									<h1 class="text-2xl font-bold leading-tight"><%= me.name %></h1>
+									<p class="text-gray-400">@<%= me.username %></p>
+									<% if (me.bio) { %>
+										<p class="text-gray-300 mt-2"><%= me.bio %></p>
 									<% } %>
-									<% if (meUser.created_at) { %>
-										<p class="text-gray-500 text-sm mt-1">Joined <%= new Date(meUser.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) %></p>
+									<% if (me.created_at) { %>
+										<p class="text-gray-500 text-sm mt-1">Joined <%= new Date(me.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) %></p>
 									<% } %>
 								</div>
 							</div>
@@ -47,14 +46,14 @@
 									</a>
 								<% } else { %>
 									<% if (typeof isFollowing !== 'undefined' && isFollowing) { %>
-										<form action="/profile/<%= meUser.username %>/unfollow" method="POST" class="inline">
+										<form action="/profile/<%= me.username %>/unfollow" method="POST" class="inline">
 											<button type="submit" class="px-4 py-2 rounded-full bg-gray-600 hover:bg-gray-700 text-sm font-semibold flex items-center gap-2">
 												<i data-feather="user-check" class="w-4 h-4"></i>
 												<span>Following</span>
 											</button>
 										</form>
 									<% } else { %>
-										<form action="/profile/<%= meUser.username %>/follow" method="POST" class="inline">
+										<form action="/profile/<%= me.username %>/follow" method="POST" class="inline">
 											<button type="submit" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
 												<i data-feather="user-plus" class="w-4 h-4"></i>
 												<span>Follow</span>
@@ -69,21 +68,21 @@
 							<div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between border border-gray-600/60">
 								<div>
 									<p class="text-xs text-gray-400 uppercase">Posts</p>
-									<p class="font-semibold text-white" data-post-count><%= meUser.stats ? meUser.stats.postsCount : 0 %></p>
+									<p class="font-semibold text-white" data-post-count><%= me.stats ? me.stats.postsCount : 0 %></p>
 								</div>
 								<i data-feather="file-text" class="w-5 h-5 text-purple-200"></i>
 							</div>
 							<div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between border border-gray-600/60">
 								<div>
 									<p class="text-xs text-gray-400 uppercase">Followers</p>
-									<p class="font-semibold text-white"><%= meUser.stats ? meUser.stats.followersCount : 0 %></p>
+									<p class="font-semibold text-white"><%= me.stats ? me.stats.followersCount : 0 %></p>
 								</div>
 								<i data-feather="users" class="w-5 h-5 text-purple-200"></i>
 							</div>
 							<div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between border border-gray-600/60">
 								<div>
 									<p class="text-xs text-gray-400 uppercase">Following</p>
-									<p class="font-semibold text-white"><%= meUser.stats ? meUser.stats.followingCount : 0 %></p>
+									<p class="font-semibold text-white"><%= me.stats ? me.stats.followingCount : 0 %></p>
 								</div>
 								<i data-feather="user-plus" class="w-5 h-5 text-purple-200"></i>
 							</div>
