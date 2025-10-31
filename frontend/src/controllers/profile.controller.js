@@ -207,9 +207,6 @@ export async function renderProfilePage(req, res) {
   // If viewing own profile or no username specified, show current user's posts
   if (userRecord) {
     feed = await fetchPostsForUser(userRecord, userRecord.user_id);
-    if (feed.length) {
-      console.log('Profile feed first media sample:', feed[0].media);
-    }
   }
 
   const { me, viewer } = buildViewUser(req, userRecord);
@@ -241,10 +238,6 @@ export function renderProfileEditPage(req, res) {
 }
 
 export async function updateProfile(req, res) {
-  // Debug logging to see what's being received
-  console.log('Request body received:', req.body);
-  console.log('Request headers:', req.headers);
-  
   const { displayName, bio, email } = req.body;
   const currentUser = await loadCurrentUser(req, { res });
   const username = currentUser?.username || req.user?.username;
