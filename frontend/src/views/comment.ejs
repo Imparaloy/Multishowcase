@@ -57,7 +57,7 @@
         </div>
 
         <!-- Comments Feed -->
-        <div class="p-4 space-y-4">
+        <div id="comments-feed" class="p-4 space-y-4">
           <% if (comments && comments.length) { %>
             <% comments.forEach(comment => { %>
               <div data-post-id="<%= comment.id %>">
@@ -87,7 +87,7 @@
       
       // Get the post ID from the URL or from the post element
       const urlParams = new URLSearchParams(window.location.search);
-      const postId = urlParams.get('id') || document.querySelector('[data-post-id]')?.getAttribute('data-post-id');
+      const postId = urlParams.get('id') || document.querySelector('main [data-post-id]')?.getAttribute('data-post-id');
       
       /**
        * Handle key press in comment input
@@ -173,7 +173,11 @@
        * @param {Object} comment - The comment object to add
        */
       function addCommentToFeed(comment) {
-        const commentsFeed = document.querySelector('.space-y-4');
+        const commentsFeed = document.getElementById('comments-feed');
+        if (!commentsFeed) {
+          console.error('Comments feed container not found');
+          return;
+        }
         const noCommentsMessage = commentsFeed.querySelector('.text-gray-400');
         
         // Remove "No comments yet" message if it exists
