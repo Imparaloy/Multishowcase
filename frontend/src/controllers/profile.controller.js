@@ -23,8 +23,11 @@ async function fetchPostsForUser(userRecord) {
 
     return {
       id: row.post_id,
-      name: userRecord.display_name || userRecord.username,
-      username: userRecord.username,
+      post_id: row.post_id,
+      name: row.author_display_name || userRecord.display_name || userRecord.username,
+      username: row.author_username || userRecord.username,
+      author_display_name: row.author_display_name || userRecord.display_name || userRecord.username,
+      author_username: row.author_username || userRecord.username,
       title: row.title || "",
       body,
       content: body,
@@ -70,7 +73,35 @@ export async function renderProfilePage(req, res) {
       const profileUser = rows[0];
       
       if (profileUser) {
-        feed = await getUnifiedFeed({ authorId: profileUser.user_id });
+        feed = await getUnifiedFeed({
+          authorId: profileUser.user_id,
+          statuses: ['published'],
+          viewerId: userRecord?.user_id
+        });
+        
+        // Map the posts to ensure consistent format
+        feed = feed.map((row) => {
+          const primaryMedia = row.media && row.media.length ? row.media[0] : null;
+          const body = row.body || "";
+
+          return {
+            id: row.post_id,
+            post_id: row.post_id,
+            name: row.author_display_name || profileUser.display_name || profileUser.username,
+            username: row.author_username || profileUser.username,
+            author_display_name: row.author_display_name || profileUser.display_name || profileUser.username,
+            author_username: row.author_username || profileUser.username,
+            title: row.title || "",
+            body,
+            content: body,
+            media: row.media || [],
+            primaryMedia,
+            status: row.status,
+            createdAt: row.created_at,
+            comments: row.comments || 0,
+            likes: row.likes || 0,
+          };
+        });
       }
       
       const { me, viewer } = buildViewUser(req, userRecord);
