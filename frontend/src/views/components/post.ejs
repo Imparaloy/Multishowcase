@@ -22,6 +22,11 @@ const galleryMedia = heroMedia ? (heroIndex > -1 ? rawMediaList.filter((_, idx) 
 
 // URL generation for actions
 const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/comment';
+
+// Follow button visibility control
+const basicCanShowFollow = !isOwner && typeof username !== 'undefined' && username !== (userContext?.username || '');
+const followButtonOverride = typeof showFollowButton !== 'undefined' ? Boolean(showFollowButton) : null;
+const shouldDisplayFollowButton = followButtonOverride !== null ? (followButtonOverride && basicCanShowFollow) : basicCanShowFollow;
 %>
 
 <div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg">
@@ -37,7 +42,7 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
           <a href="/profile/<%= username %>" class="hover:text-purple-400 transition-colors">@<%= username %></a>
         </p>
       </div>
-      <% if (!isOwner && typeof username !== 'undefined' && username !== (currentUser?.username || '')) { %>
+      <% if (shouldDisplayFollowButton) { %>
         <div class="follow-button-container ml-2" data-username="<%= username %>">
           <% if (typeof isFollowing !== 'undefined' && isFollowing) { %>
             <button

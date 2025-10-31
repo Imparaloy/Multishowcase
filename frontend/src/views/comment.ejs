@@ -31,7 +31,8 @@
               primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
               comments: post.comments,
               likes: post.likes,
-              category: post.category || null
+              category: post.category || null,
+              showFollowButton: false
             }) %>
           </div>
         </div>
@@ -70,7 +71,8 @@
                   primaryMedia: comment.primaryMedia || (Array.isArray(comment.media) && comment.media.length ? comment.media[0] : null),
                   comments: comment.comments,
                   likes: comment.likes,
-                  category: comment.category || null
+                  category: comment.category || null,
+                  showFollowButton: false
                 }) %>
               </div>
             <% }) %>
