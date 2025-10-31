@@ -46,7 +46,21 @@
 										<span>Edit profile</span>
 									</a>
 								<% } else { %>
-									<button type="button" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">Follow</button>
+									<% if (typeof isFollowing !== 'undefined' && isFollowing) { %>
+										<form action="/profile/<%= meUser.username %>/unfollow" method="POST" class="inline">
+											<button type="submit" class="px-4 py-2 rounded-full bg-gray-600 hover:bg-gray-700 text-sm font-semibold flex items-center gap-2">
+												<i data-feather="user-check" class="w-4 h-4"></i>
+												<span>Following</span>
+											</button>
+										</form>
+									<% } else { %>
+										<form action="/profile/<%= meUser.username %>/follow" method="POST" class="inline">
+											<button type="submit" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
+												<i data-feather="user-plus" class="w-4 h-4"></i>
+												<span>Follow</span>
+											</button>
+										</form>
+									<% } %>
 								<% } %>
 							</div>
 						</div>

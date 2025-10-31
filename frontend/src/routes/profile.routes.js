@@ -4,6 +4,8 @@ import {
   renderProfileEditPage,
   updateProfile,
   deleteAccount,
+  followUser,
+  unfollowUser,
 } from '../controllers/profile.controller.js';
 import {
   authenticateCognitoJWT,
@@ -35,5 +37,19 @@ router.post(
 
 router.get('/profile', authenticateCognitoJWT, requireAuth, renderProfilePage);
 router.get('/profile/:username', authenticateCognitoJWT, requireAuth, renderProfilePage);
+
+router.post(
+  '/profile/:username/follow',
+  authenticateCognitoJWT,
+  requireAuth,
+  followUser
+);
+
+router.post(
+  '/profile/:username/unfollow',
+  authenticateCognitoJWT,
+  requireAuth,
+  unfollowUser
+);
 
 export default router;

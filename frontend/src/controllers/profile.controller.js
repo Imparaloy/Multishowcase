@@ -70,6 +70,24 @@ export async function renderProfilePage(req, res) {
     console.error('User object exists but missing sub property');
   }
 
+  // Function to check if current user is following the profile user
+  async function isFollowing(followerId, followingId) {
+    if (!followerId || !followingId) return false;
+    
+    try {
+      const client = await pool.connect();
+      const result = await client.query(
+        'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
+        [followerId, followingId]
+      );
+      client.release();
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error("Error checking follow status:", error);
+      return false;
+    }
+  }
+
   // Function to get user statistics
   async function getUserStats(userId) {
     try {
@@ -155,6 +173,9 @@ export async function renderProfilePage(req, res) {
         
         // Get user statistics
         const userStats = await getUserStats(profileUser.user_id);
+        
+        // Check if current user is following this profile user
+        const isFollowingUser = await isFollowing(userRecord?.user_id, profileUser.user_id);
       }
       
       const { me, viewer } = buildViewUser(req, userRecord);
@@ -172,6 +193,7 @@ export async function renderProfilePage(req, res) {
         currentUser: viewer,
         activePage: "profile",
         feed,
+        isFollowing: await isFollowing(userRecord?.user_id, profileUser.user_id)
       });
       return;
     } catch (error) {
@@ -535,4 +557,126 @@ export async function deleteAccount(req, res) {
     ok: true,
     message: "Account deleted successfully",
   });
+}
+
+export async function followUser(req, res) {
+  const { username } = req.params;
+  const currentUser = await loadCurrentUser(req, { res });
+  
+  if (!currentUser?.user_id) {
+    return res.status(401).json({
+      ok: false,
+      message: "User not authenticated"
+    });
+  }
+  
+  try {
+    // Get the user to follow
+    const { rows } = await pool.query(
+      'SELECT user_id FROM users WHERE username = $1',
+      [username]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        message: "User not found"
+      });
+    }
+    
+    const targetUserId = rows[0].user_id;
+    
+    // Don't allow following yourself
+    if (currentUser.user_id === targetUserId) {
+      return res.status(400).json({
+        ok: false,
+        message: "You cannot follow yourself"
+      });
+    }
+    
+    // Check if already following
+    const existingFollow = await pool.query(
+      'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
+      [currentUser.user_id, targetUserId]
+    );
+    
+    if (existingFollow.rows.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "You are already following this user"
+      });
+    }
+    
+    // Create follow relationship
+    await pool.query(
+      'INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)',
+      [currentUser.user_id, targetUserId]
+    );
+    
+    return res.json({
+      ok: true,
+      message: "User followed successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error following user:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Server error. Please try again later."
+    });
+  }
+}
+
+export async function unfollowUser(req, res) {
+  const { username } = req.params;
+  const currentUser = await loadCurrentUser(req, { res });
+  
+  if (!currentUser?.user_id) {
+    return res.status(401).json({
+      ok: false,
+      message: "User not authenticated"
+    });
+  }
+  
+  try {
+    // Get the user to unfollow
+    const { rows } = await pool.query(
+      'SELECT user_id FROM users WHERE username = $1',
+      [username]
+    );
+    
+    if (rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        message: "User not found"
+      });
+    }
+    
+    const targetUserId = rows[0].user_id;
+    
+    // Remove follow relationship
+    const result = await pool.query(
+      'DELETE FROM follows WHERE follower_id = $1 AND following_id = $2',
+      [currentUser.user_id, targetUserId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(400).json({
+        ok: false,
+        message: "You are not following this user"
+      });
+    }
+    
+    return res.json({
+      ok: true,
+      message: "User unfollowed successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error unfollowing user:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Server error. Please try again later."
+    });
+  }
 }
