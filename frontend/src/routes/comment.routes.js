@@ -17,11 +17,58 @@ router.get('/comment', async (req, res) => {
     const id = rawId && rawId.length > 0 ? rawId : null;
 
     if (id && !isUuidV4(id)) {
+      console.warn(`[comment] Rejecting non-UUID id param`, { id });
       return res.status(400).send('Invalid post id');
     }
 
     // Fetch the requested published post (or the latest published one)
-    const postQuery = id
+    let resolvedPostId = id;
+
+    if (id) {
+      const postRes = await pool.query(
+        `
+        SELECT p.post_id, p.title, p.body, p.category, p.created_at, p.published_at,
+               u.username AS author_username, COALESCE(u.display_name, u.username) AS author_display_name,
+               COALESCE(pm.media, '[]'::json) AS media
+        FROM posts p
+        JOIN users u ON u.user_id = p.author_id
+        LEFT JOIN LATERAL (
+          SELECT json_agg(
+            jsonb_build_object(
+              's3_url', media.s3_url
+            ) ORDER BY media.order_index NULLS LAST
+          ) AS media
+          FROM post_media media
+          WHERE media.post_id = p.post_id
+        ) pm ON true
+        WHERE p.status = 'published'::post_status AND p.post_id = $1
+        LIMIT 1
+        `,
+        [id],
+      );
+
+      if (postRes.rows.length === 0) {
+        console.warn('[comment] No published post for requested id, attempting comment resolution', { requestedId: id });
+        // Try resolving as a comment id
+        const commentRes = await pool.query(
+          `SELECT post_id FROM comments WHERE comment_id = $1 LIMIT 1`,
+          [id]
+        );
+
+        if (commentRes.rows.length > 0) {
+          console.info('[comment] Resolved comment id to parent post', {
+            requestedId: id,
+            resolvedPostId: commentRes.rows[0].post_id,
+          });
+          resolvedPostId = commentRes.rows[0].post_id;
+        }
+        else {
+          console.warn('[comment] Could not resolve id as comment id either', { requestedId: id });
+        }
+      }
+    }
+
+    const postQuery = resolvedPostId
       ? {
           text: `
             SELECT p.post_id, p.title, p.body, p.category, p.created_at, p.published_at,
@@ -41,7 +88,7 @@ router.get('/comment', async (req, res) => {
             WHERE p.status = 'published'::post_status AND p.post_id = $1
             LIMIT 1
           `,
-          values: [id],
+          values: [resolvedPostId],
         }
       : {
           text: `
@@ -68,7 +115,32 @@ router.get('/comment', async (req, res) => {
 
     const postRes = await pool.query(postQuery.text, postQuery.values);
     const row = postRes.rows[0];
-    if (!row) return res.status(404).send('Post not found');
+    if (!row) {
+      if (resolvedPostId) {
+        const statusCheck = await pool.query(
+          `SELECT status FROM posts WHERE post_id = $1 LIMIT 1`,
+          [resolvedPostId]
+        );
+
+        if (statusCheck.rows.length > 0) {
+          console.warn('[comment] Post found but not published; denying access', {
+            requestedId: id,
+            resolvedPostId,
+            status: statusCheck.rows[0].status,
+          });
+        } else {
+          console.warn('[comment] No post record found even after resolution', {
+            requestedId: id,
+            resolvedPostId,
+          });
+        }
+      } else if (id) {
+        console.warn('[comment] No post could be loaded for supplied id (no resolution)', { requestedId: id });
+      } else {
+        console.warn('[comment] No published posts available for default comment view');
+      }
+      return res.status(404).send('Post not found');
+    }
 
     const media = Array.isArray(row.media)
       ? row.media.map(m => (typeof m === 'string' ? m : m?.s3_url)).filter(Boolean)
