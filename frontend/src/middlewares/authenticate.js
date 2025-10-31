@@ -40,10 +40,25 @@ const devMockUser = {
 
 function extractToken(req) {
   // Prefer ID token for richer profile claims (name, email, custom attributes)
-  if (req.cookies?.id_token) return req.cookies.id_token;
-  if (req.cookies?.access_token) return req.cookies.access_token;
+  console.log('Extracting token from request...');
+  console.log('Cookies:', req.cookies);
+  console.log('Authorization header:', req.headers.authorization || req.headers.Authorization);
+  
+  if (req.cookies?.id_token) {
+    console.log('Found ID token in cookies');
+    return req.cookies.id_token;
+  }
+  if (req.cookies?.access_token) {
+    console.log('Found access token in cookies');
+    return req.cookies.access_token;
+  }
   const header = req.headers.authorization || req.headers.Authorization || '';
-  return header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  if (header.startsWith('Bearer ')) {
+    console.log('Found token in Authorization header');
+    return header.slice(7).trim();
+  }
+  console.log('No token found');
+  return null;
 }
 
 // Helper: decide if this request expects an HTML page (vs JSON/API)
@@ -53,6 +68,7 @@ function wantsHTML(req) {
 }
 
 function buildUserFromPayload(payload) {
+  console.log('Building user from payload, sub:', payload.sub);
   return {
     sub: payload.sub,
     username: payload['cognito:username'] || payload.username,
@@ -67,15 +83,28 @@ async function verifyEither(token) {
   if (!accessVerifier || !idVerifier) throw new Error('Verifiers not configured');
 
   try {
-    return await accessVerifier.verify(token);
+    console.log('Trying to verify as access token...');
+    const result = await accessVerifier.verify(token);
+    console.log('Access token verified successfully');
+    return result;
   } catch (err) {
-    return await idVerifier.verify(token);
+    console.log('Access token verification failed, trying ID token...', err.message);
+    try {
+      const result = await idVerifier.verify(token);
+      console.log('ID token verified successfully');
+      return result;
+    } catch (idErr) {
+      console.error('ID token verification also failed:', idErr.message);
+      throw idErr;
+    }
   }
 }
 
 async function authenticateCognitoJWT(req, res, next) {
+  console.log('authenticateCognitoJWT called');
   // In development, return mock user when verifiers are not configured
   if (!accessVerifier || !idVerifier) {
+    console.log('Verifiers not configured, using mock user');
     req.user = devMockUser;
     await loadCurrentUser(req, { res });
     return next();
@@ -84,6 +113,7 @@ async function authenticateCognitoJWT(req, res, next) {
   try {
     const token = extractToken(req);
     if (!token) {
+      console.log('No token found in request');
       // Redirect to login for page requests, 401 JSON for API requests
       if (wantsHTML(req)) {
         const nextUrl = encodeURIComponent(req.originalUrl || '/');
@@ -93,7 +123,9 @@ async function authenticateCognitoJWT(req, res, next) {
     }
 
     const payload = await verifyEither(token);
+    console.log('JWT payload:', JSON.stringify(payload, null, 2));
     req.user = buildUserFromPayload(payload);
+    console.log('Built user object:', JSON.stringify(req.user, null, 2));
     await loadCurrentUser(req, { res });
     return next();
   } catch (err) {
@@ -107,13 +139,16 @@ async function authenticateCognitoJWT(req, res, next) {
 }
 
 function requireAuth(req, res, next) {
+  console.log('requireAuth called, req.user:', req.user ? 'exists' : 'null');
   if (!req.user) {
+    console.log('No user found in request, redirecting to login');
     if (wantsHTML(req)) {
       const nextUrl = encodeURIComponent(req.originalUrl || '/');
       return res.redirect(302, `/login?next=${nextUrl}`);
     }
     return res.status(401).json({ message: 'Unauthorized' });
   }
+  console.log('User found, proceeding to next middleware');
   return next();
 }
 
@@ -142,9 +177,12 @@ async function attachUserToLocals(req, res, next) {
     const token = extractToken(req);
     if (!token) return next();
     const payload = await verifyEither(token);
+    console.log('attachUserToLocals - JWT payload:', JSON.stringify(payload, null, 2));
     req.user = buildUserFromPayload(payload);
+    console.log('attachUserToLocals - Built user object:', JSON.stringify(req.user, null, 2));
     await loadCurrentUser(req, { res });
   } catch (err) {
+    console.error('attachUserToLocals - Error verifying token:', err);
     // Swallow token errors for attach-only usage
   }
 

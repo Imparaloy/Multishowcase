@@ -50,11 +50,14 @@ export async function renderProfilePage(req, res) {
   const profileUsername = req.params.username;
   const currentUser = req.user;
 
+  // Debug logging to understand the user object structure
+  console.log('Current user object:', JSON.stringify(currentUser, null, 2));
+
   if (currentUser?.sub) {
     let client;
     try {
       client = await pool.connect();
-      userRecord = await ensureUserRecord(client, req.user);
+      userRecord = await ensureUserRecord(req.user, { client });
     } catch (error) {
       console.error("Error loading user record:", error);
     } finally {
@@ -62,6 +65,8 @@ export async function renderProfilePage(req, res) {
         client.release();
       }
     }
+  } else if (currentUser) {
+    console.error('User object exists but missing sub property');
   }
 
   // If viewing someone else's profile, get their posts

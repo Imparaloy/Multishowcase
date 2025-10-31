@@ -45,7 +45,9 @@ function deriveEmail(claims = {}) {
 }
 
 export async function ensureUserRecord(claims = {}, { client } = {}) {
+  console.log('ensureUserRecord called with claims:', JSON.stringify(claims, null, 2));
   if (!claims?.sub) {
+    console.error('Missing sub in claims. Claims keys:', Object.keys(claims));
     throw new Error('Missing Cognito subject on request user');
   }
 
