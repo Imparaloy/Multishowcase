@@ -68,7 +68,7 @@ function formatGroupRow(row) {
     })
     .filter(Boolean);
 
-  const ownerExists = members.some((member) => member.user_id === row.owner_id);
+  const ownerExists = members.some((member) => member.user_id && member.user_id === row.owner_id);
   if (!ownerExists) {
     const ownerDisplayName = row.owner_display_name || row.owner_username;
     members.unshift({
