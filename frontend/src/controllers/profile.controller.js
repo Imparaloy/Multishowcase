@@ -42,16 +42,63 @@ export async function renderProfilePage(req, res) {
   let feed = [];
   let userRecord = null;
 
-  try {
-    userRecord = await loadCurrentUser(req, { res });
-    if (userRecord) {
-      feed = await fetchPostsForUser(userRecord);
-      if (feed.length) {
-        console.log('Profile feed first media sample:', feed[0].media);
+  // Get the username from URL params, default to current user if not provided
+  const profileUsername = req.params.username;
+  const currentUser = req.user;
+
+  if (currentUser?.sub) {
+    let client;
+    try {
+      client = await pool.connect();
+      userRecord = await ensureUserRecord(client, req.user);
+    } catch (error) {
+      console.error("Error loading user record:", error);
+    } finally {
+      if (client) {
+        client.release();
       }
     }
-  } catch (error) {
-    console.error("Error loading profile feed:", error);
+  }
+
+  // If viewing someone else's profile, get their posts
+  if (profileUsername && profileUsername !== currentUser?.username) {
+    try {
+      const { rows } = await pool.query(
+        'SELECT * FROM users WHERE username = $1',
+        [profileUsername]
+      );
+      const profileUser = rows[0];
+      
+      if (profileUser) {
+        feed = await getUnifiedFeed({ authorId: profileUser.user_id });
+      }
+      
+      const { me, viewer } = buildViewUser(req, userRecord);
+
+      res.render("profile", {
+        me: {
+          name: profileUser.display_name || profileUser.username,
+          username: profileUser.username,
+          email: profileUser.email || "",
+          bio: profileUser.bio || ""
+        },
+        currentUser: viewer,
+        activePage: "profile",
+        feed,
+      });
+      return;
+    } catch (error) {
+      console.error("Error loading profile user:", error);
+      return res.status(500).send("Failed to load profile");
+    }
+  }
+
+  // If viewing own profile or no username specified, show current user's posts
+  if (userRecord) {
+    feed = await fetchPostsForUser(userRecord);
+    if (feed.length) {
+      console.log('Profile feed first media sample:', feed[0].media);
+    }
   }
 
   const { me, viewer } = buildViewUser(req, userRecord);
