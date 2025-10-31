@@ -287,23 +287,51 @@ export async function deleteAccount(req, res) {
   try {
     await client.query("BEGIN");
 
-    // Clean up user owned content before removing the primary record
-    await client.query("DELETE FROM likes WHERE user_id = $1", [userId]);
-    await client.query("DELETE FROM comments WHERE user_id = $1", [userId]);
-    await client.query("DELETE FROM group_join_requests WHERE user_id = $1", [userId]);
-    await client.query("DELETE FROM group_members WHERE user_id = $1", [userId]);
+    const tablesToCheck = [
+      "likes",
+      "comments",
+      "group_join_requests",
+      "group_members",
+      "posts",
+      "groups",
+      "reports",
+    ];
 
-    // Remove posts (cascade takes care of media and dependent likes)
-    await client.query("DELETE FROM posts WHERE author_id = $1", [userId]);
-
-    // Remove any groups owned by the user (members / requests cascade)
-    await client.query("DELETE FROM groups WHERE owner_id = $1", [userId]);
-
-    // Clear reports created by or targeting this user if table exists
-    const { rows: reportTable } = await client.query(
-      "SELECT to_regclass('public.reports') AS oid"
+    const { rows: tableRows } = await client.query(
+      `SELECT table_name
+       FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND table_name = ANY($1::text[])`,
+      [tablesToCheck]
     );
-    if (reportTable[0]?.oid) {
+
+    const availableTables = new Set(tableRows.map((row) => row.table_name));
+
+    if (availableTables.has("likes")) {
+      await client.query("DELETE FROM likes WHERE user_id = $1", [userId]);
+    }
+
+    if (availableTables.has("comments")) {
+      await client.query("DELETE FROM comments WHERE user_id = $1", [userId]);
+    }
+
+    if (availableTables.has("group_join_requests")) {
+      await client.query("DELETE FROM group_join_requests WHERE user_id = $1", [userId]);
+    }
+
+    if (availableTables.has("group_members")) {
+      await client.query("DELETE FROM group_members WHERE user_id = $1", [userId]);
+    }
+
+    if (availableTables.has("posts")) {
+      await client.query("DELETE FROM posts WHERE author_id = $1", [userId]);
+    }
+
+    if (availableTables.has("groups")) {
+      await client.query("DELETE FROM groups WHERE owner_id = $1", [userId]);
+    }
+
+    if (availableTables.has("reports")) {
       await client.query(
         `DELETE FROM reports
          WHERE reporter_id::text = $1

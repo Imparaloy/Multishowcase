@@ -12,9 +12,6 @@ import {
 
 const router = express.Router();
 
-router.get('/profile', authenticateCognitoJWT, requireAuth, renderProfilePage);
-router.get('/profile/:username', authenticateCognitoJWT, requireAuth, renderProfilePage);
-
 router.get(
   '/profile/edit',
   authenticateCognitoJWT,
@@ -35,5 +32,8 @@ router.post(
   requireAuth,
   deleteAccount
 );
+
+router.get('/profile', authenticateCognitoJWT, requireAuth, renderProfilePage);
+router.get('/profile/:username', authenticateCognitoJWT, requireAuth, renderProfilePage);
 
 export default router;
