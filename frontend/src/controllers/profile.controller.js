@@ -169,6 +169,7 @@ export async function renderProfilePage(req, res) {
             createdAt: row.created_at,
             comments: row.comments || 0,
             likes: row.likes || 0,
+            isFollowing: row.isFollowing || false
           };
         });
         

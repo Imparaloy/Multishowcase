@@ -129,7 +129,8 @@ export const getExploreFeed = async (req, res) => {
           primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
           comments: Number(post.comments ?? 0),
           likes: Number(post.likes ?? 0),
-          currentUser: res.locals.user || null
+          currentUser: res.locals.user || null,
+          isFollowing: post.isFollowing || false
         })
       )
     );
