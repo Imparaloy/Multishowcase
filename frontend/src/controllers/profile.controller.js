@@ -8,6 +8,7 @@ import { getUnifiedFeed } from "./feed.controller.js";
 import {
   buildViewUser,
   loadCurrentUser,
+  ensureUserRecord,
 } from "../utils/session-user.js";
 
 async function fetchPostsForUser(userRecord) {
