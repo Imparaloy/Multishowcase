@@ -14,7 +14,7 @@ import {
 async function fetchPostsForUser(userRecord, viewerId = null) {
   const posts = await getUnifiedFeed({
     authorId: userRecord.user_id,
-    statuses: ['published', 'unpublish'],
+    statuses: ['published'],
     viewerId: viewerId || userRecord.user_id
   });
   
@@ -94,7 +94,7 @@ export async function renderProfilePage(req, res) {
     try {
       const client = await pool.connect();
       
-      // Get posts count by counting published posts (more accurate)
+      // Get posts count by counting published posts only (for consistency with other profiles)
       const postsResult = await client.query(
         'SELECT COUNT(*) as count FROM posts WHERE author_id = $1 AND status = $2',
         [userId, 'published']
@@ -241,6 +241,10 @@ export function renderProfileEditPage(req, res) {
 }
 
 export async function updateProfile(req, res) {
+  // Debug logging to see what's being received
+  console.log('Request body received:', req.body);
+  console.log('Request headers:', req.headers);
+  
   const { displayName, bio, email } = req.body;
   const currentUser = await loadCurrentUser(req, { res });
   const username = currentUser?.username || req.user?.username;
