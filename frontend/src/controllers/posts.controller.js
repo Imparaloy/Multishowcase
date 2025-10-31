@@ -20,6 +20,61 @@ function inferMediaType(mime = '') {
   return 'link';
 }
 
+function resolveContentType(meta = {}) {
+  if (!meta || typeof meta !== 'object') return null;
+  return (
+    meta.content_type ||
+    meta.filetype ||
+    meta.mimeType ||
+    meta.mimetype ||
+    meta['Content-Type'] ||
+    null
+  );
+}
+
+function normalizeMediaDescriptor(entry = {}) {
+  if (!entry || typeof entry !== 'object') return null;
+
+  const normalized = { ...entry };
+
+  if (!normalized.key && typeof normalized.s3_key === 'string') {
+    normalized.key = normalized.s3_key;
+  } else if (!normalized.s3_key && typeof normalized.key === 'string') {
+    normalized.s3_key = normalized.key;
+  }
+
+  if (normalized.s3Url && !normalized.s3_url) {
+    normalized.s3_url = normalized.s3Url;
+  }
+
+  if (!normalized.s3_url && typeof normalized.url === 'string') {
+    normalized.s3_url = normalized.url;
+  }
+
+  const contentType = resolveContentType(normalized);
+  if (!normalized.content_type && contentType) {
+    normalized.content_type = contentType;
+  }
+
+  const rawType =
+    typeof normalized.media_type === 'string'
+      ? normalized.media_type
+      : typeof normalized.type === 'string'
+        ? normalized.type
+        : typeof normalized.kind === 'string'
+          ? normalized.kind
+          : null;
+
+  const lowered = rawType ? rawType.toLowerCase() : null;
+  const mediaType = lowered && ['image', 'video', 'link'].includes(lowered)
+    ? lowered
+    : inferMediaType(contentType || '');
+
+  normalized.media_type = mediaType;
+
+  return normalized;
+}
+
 function resolveUploadUsername(user = {}) {
   return (
     user.username ||
@@ -58,7 +113,12 @@ function normalizeMediaMetadata(input) {
       }
       return entry;
     })
-    .filter((entry) => entry && typeof entry === 'object' && entry.key);
+    .filter((entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      return Boolean(entry.key || entry.s3_key);
+    })
+    .map((entry) => normalizeMediaDescriptor(entry))
+    .filter(Boolean);
 }
 
 async function uploadIncomingMedia(files, user) {
@@ -78,17 +138,23 @@ async function uploadIncomingMedia(files, user) {
     if (!file) continue;
     const baseName = file.name ? path.basename(file.name) : `upload_${Date.now()}`;
     const key = `users/${targetUsername}/uploads/${Date.now()}_${baseName}`;
+    const contentType = file.mimetype || 'application/octet-stream';
     await uploadObject({
       key,
       body: file.data,
-      contentType: file.mimetype || 'application/octet-stream'
+      contentType
     });
+    const mediaType = inferMediaType(contentType);
+    const publicUrl = publicUrlForKey(key);
     uploads.push({
       key,
-      media_type: inferMediaType(file.mimetype),
+      s3_key: key,
+      media_type: mediaType,
       filename: file.name || baseName,
       fileSize: file.size,
-      filetype: file.mimetype || null
+      filetype: contentType,
+      content_type: contentType,
+      s3_url: publicUrl
     });
   }
 
@@ -231,8 +297,16 @@ export const createPost = async (req, res) => {
     if (combinedMedia.length > 0) {
       for (let index = 0; index < combinedMedia.length; index++) {
         const media = combinedMedia[index];
-        const s3Key = media.key;
-        const s3Url = publicUrlForKey(s3Key);
+        const descriptor = normalizeMediaDescriptor(media);
+        if (!descriptor?.key) continue;
+
+        const s3Key = descriptor.key;
+        const s3Url = descriptor.s3_url || publicUrlForKey(s3Key);
+        const contentType = resolveContentType(descriptor) || 'application/octet-stream';
+        const mediaType = descriptor.media_type || inferMediaType(contentType);
+        const originalFilename = descriptor.filename || descriptor.original_filename || null;
+        const fileSize = descriptor.fileSize ?? descriptor.file_size ?? null;
+
         await client.query(
           `
           INSERT INTO post_media (post_id, media_type, order_index, s3_key, s3_url, original_filename, file_size, content_type)
@@ -240,13 +314,13 @@ export const createPost = async (req, res) => {
           `,
           [
             postId,
-            media.media_type || 'image',
-            media.order_index ?? index,
+            mediaType,
+            descriptor.order_index ?? index,
             s3Key,
             s3Url,
-            media.filename || null,
-            media.fileSize || null,
-            media.filetype || 'image/jpeg'
+            originalFilename,
+            fileSize,
+            contentType
           ]
         );
       }
