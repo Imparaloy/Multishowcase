@@ -45,6 +45,7 @@ async function fetchPostsForUser(userRecord) {
 export async function renderProfilePage(req, res) {
   let feed = [];
   let userRecord = null;
+  let profileUser = null;
 
   // Get the username from URL params, default to current user if not provided
   const profileUsername = req.params.username;
@@ -69,6 +70,61 @@ export async function renderProfilePage(req, res) {
     console.error('User object exists but missing sub property');
   }
 
+  // Function to get user statistics
+  async function getUserStats(userId) {
+    try {
+      const client = await pool.connect();
+      
+      // Get posts count
+      const postsResult = await client.query(
+        'SELECT COUNT(*) as count FROM posts WHERE author_id = $1 AND status = $2',
+        [userId, 'published']
+      );
+      const postsCount = parseInt(postsResult.rows[0].count);
+      
+      // Get followers count (assuming a follows table exists, for now using placeholder)
+      let followersCount = 0;
+      try {
+        const followersResult = await client.query(
+          'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
+          [userId]
+        );
+        followersCount = parseInt(followersResult.rows[0].count);
+      } catch (err) {
+        // Table might not exist yet, using placeholder
+        followersCount = 0;
+      }
+      
+      // Get following count
+      let followingCount = 0;
+      try {
+        const followingResult = await client.query(
+          'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
+          [userId]
+        );
+        followingCount = parseInt(followingResult.rows[0].count);
+      } catch (err) {
+        // Table might not exist yet, using placeholder
+        followingCount = 0;
+      }
+      
+      client.release();
+      
+      return {
+        postsCount,
+        followersCount,
+        followingCount
+      };
+    } catch (error) {
+      console.error("Error getting user stats:", error);
+      return {
+        postsCount: 0,
+        followersCount: 0,
+        followingCount: 0
+      };
+    }
+  }
+
   // If viewing someone else's profile, get their posts
   if (profileUsername && profileUsername !== currentUser?.username) {
     try {
@@ -76,7 +132,7 @@ export async function renderProfilePage(req, res) {
         'SELECT * FROM users WHERE username = $1',
         [profileUsername]
       );
-      const profileUser = rows[0];
+      profileUser = rows[0];
       
       if (profileUser) {
         feed = await getUnifiedFeed({
@@ -108,16 +164,22 @@ export async function renderProfilePage(req, res) {
             likes: row.likes || 0,
           };
         });
+        
+        // Get user statistics
+        const userStats = await getUserStats(profileUser.user_id);
       }
       
       const { me, viewer } = buildViewUser(req, userRecord);
 
-      res.render("profile", {
+      res.render("user-profile", {
         me: {
           name: profileUser.display_name || profileUser.username,
           username: profileUser.username,
           email: profileUser.email || "",
-          bio: profileUser.bio || ""
+          bio: profileUser.bio || "",
+          avatar_url: profileUser.avatar_url || "",
+          created_at: profileUser.created_at,
+          stats: await getUserStats(profileUser.user_id)
         },
         currentUser: viewer,
         activePage: "profile",
@@ -139,9 +201,18 @@ export async function renderProfilePage(req, res) {
   }
 
   const { me, viewer } = buildViewUser(req, userRecord);
+  
+  // Get user statistics for the profile being viewed
+  const profileUserId = profileUser ? profileUser.user_id : userRecord?.user_id;
+  const userStats = profileUserId ? await getUserStats(profileUserId) : { postsCount: 0, followersCount: 0, followingCount: 0 };
 
   res.render("profile", {
-    me,
+    me: {
+      ...me,
+      avatar_url: profileUser?.avatar_url || userRecord?.avatar_url || "",
+      created_at: profileUser?.created_at || userRecord?.created_at,
+      stats: userStats
+    },
     currentUser: viewer,
     activePage: "profile",
     feed,
