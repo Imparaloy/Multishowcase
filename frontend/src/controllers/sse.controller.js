@@ -135,7 +135,7 @@ export const broadcastLikeEvent = (data) => {
   
   activeConnections.forEach(connection => {
     try {
-      connection.write(`event: post_liked\ndata: ${eventData}\n\n`);
+      connection.response?.write(`event: post_liked\ndata: ${eventData}\n\n`);
     } catch (error) {
       console.error('Error broadcasting like event:', error);
     }
@@ -151,7 +151,7 @@ export const broadcastCommentEvent = (data) => {
   
   activeConnections.forEach(connection => {
     try {
-      connection.write(`event: new_comment\ndata: ${eventData}\n\n`);
+      connection.response?.write(`event: new_comment\ndata: ${eventData}\n\n`);
     } catch (error) {
       console.error('Error broadcasting comment event:', error);
     }
