@@ -160,6 +160,17 @@ async function initializeDatabase() {
       )
     `);
     
+    // Create follows table for follower/following relationships
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS follows (
+        follow_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        follower_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        following_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(follower_id, following_id)
+      )
+    `);
+    
     // Create indexes for users table
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_cognito_sub ON users(cognito_sub)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)');
@@ -376,6 +387,11 @@ async function initializeDatabase() {
     
     // Create indexes for admin_actions table
     await client.query('CREATE INDEX IF NOT EXISTS idx_admin_actions_admin ON admin_actions(admin_id)');
+    
+    // Create indexes for follows table
+    await client.query('CREATE INDEX IF NOT EXISTS idx_follows_follower_id ON follows(follower_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_follows_follower_following ON follows(follower_id, following_id)');
     
     console.log('✅ Database tables initialized successfully');
   } catch (err) {

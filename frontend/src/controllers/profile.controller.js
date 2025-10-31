@@ -82,31 +82,19 @@ export async function renderProfilePage(req, res) {
       );
       const postsCount = parseInt(postsResult.rows[0].count);
       
-      // Get followers count (assuming a follows table exists, for now using placeholder)
-      let followersCount = 0;
-      try {
-        const followersResult = await client.query(
-          'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
-          [userId]
-        );
-        followersCount = parseInt(followersResult.rows[0].count);
-      } catch (err) {
-        // Table might not exist yet, using placeholder
-        followersCount = 0;
-      }
+      // Get followers count
+      const followersResult = await client.query(
+        'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
+        [userId]
+      );
+      const followersCount = parseInt(followersResult.rows[0].count);
       
       // Get following count
-      let followingCount = 0;
-      try {
-        const followingResult = await client.query(
-          'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
-          [userId]
-        );
-        followingCount = parseInt(followingResult.rows[0].count);
-      } catch (err) {
-        // Table might not exist yet, using placeholder
-        followingCount = 0;
-      }
+      const followingResult = await client.query(
+        'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
+        [userId]
+      );
+      const followingCount = parseInt(followingResult.rows[0].count);
       
       client.release();
       
