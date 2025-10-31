@@ -177,7 +177,7 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
     
     <button
       class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group"
-      onclick="window.location.href='<%= # %>'"
+      onclick="likePost('<%= id %>')"
       aria-label="Like post"
     >
       <i data-feather="heart" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
@@ -563,6 +563,56 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
     });
   }
   
+  /**
+   * Like or unlike a post
+   * @param {string} postId - The ID of the post to like/unlike
+   */
+  function likePost(postId) {
+    if (!postId) {
+      console.error('Post ID is required for like action');
+      return;
+    }
+    
+    // Send like/unlike request
+    fetch(`/api/posts/${postId}/like`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.success) {
+        // Update the like count
+        const likeButton = document.querySelector(`button[onclick="likePost('${postId}')"]`);
+        const likeCountElement = likeButton?.querySelector('span');
+        
+        if (likeCountElement && data.likes !== undefined) {
+          likeCountElement.textContent = data.likes;
+        }
+        
+        // Toggle the heart icon color
+        const heartIcon = likeButton?.querySelector('[data-feather="heart"]');
+        if (heartIcon) {
+          heartIcon.classList.toggle('text-red-500');
+        }
+        
+        showNotification(data.liked ? 'Post liked' : 'Post unliked', 'success');
+      } else {
+        throw new Error(data.error || 'Failed to toggle like status');
+      }
+    })
+    .catch(error => {
+      console.error('Error toggling like status:', error);
+      showNotification(`Failed to toggle like: ${error.message}`, 'error');
+    });
+  }
+  
   // Make functions available globally
   window.deletePost = deletePost;
   window.showReportDialog = showReportDialog;
@@ -570,6 +620,7 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
   window.submitReport = submitReport;
   window.togglePostDropdown = togglePostDropdown;
   window.toggleFollow = toggleFollow;
+  window.likePost = likePost;
   
   // Initialize Feather Icons for this component
   if (window.feather && typeof window.feather.replace === 'function') {
