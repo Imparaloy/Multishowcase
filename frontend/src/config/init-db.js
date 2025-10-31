@@ -16,6 +16,7 @@ async function initializeDatabase() {
         display_name VARCHAR(255),
         bio TEXT,
         avatar_url VARCHAR(500),
+        posts_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )

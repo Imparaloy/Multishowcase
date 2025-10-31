@@ -221,30 +221,28 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
         if (data.success) {
           // Remove post element with animation - use the postId from the element's data attribute
           const postElement = document.querySelector(`[data-post-id="${postId}"]`);
-          
           if (postElement) {
             postElement.style.transition = 'all 0.3s ease-out';
             postElement.style.opacity = '0';
             postElement.style.transform = 'scale(0.95)';
             postElement.style.marginBottom = '0';
             postElement.style.padding = '0';
-            
             setTimeout(() => {
               postElement.style.height = '0';
-                postElement.style.overflow = 'hidden';
-                
-                setTimeout(() => {
-                  postElement.remove();
-                  showNotification('Post deleted successfully', 'success');
+              postElement.style.overflow = 'hidden';
+              setTimeout(() => {
+                postElement.remove();
+                showNotification('Post deleted successfully', 'success');
               }, 100);
-            } else {
-              // Fallback: reload page if we can't find the element
-              window.location.reload();
-            }
+            }, 300);
           } else {
-            throw new Error(data.error || 'Unknown error occurred');
+            // Fallback: reload page if we can't find the element
+            window.location.reload();
           }
-        })
+        } else {
+          throw new Error(data.error || 'Unknown error occurred');
+        }
+      })
       .catch(error => {
         console.error('Error deleting post:', error);
         showNotification(`Failed to delete post: ${error.message}`, 'error');

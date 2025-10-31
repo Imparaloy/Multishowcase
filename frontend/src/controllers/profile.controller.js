@@ -94,10 +94,10 @@ export async function renderProfilePage(req, res) {
     try {
       const client = await pool.connect();
       
-      // Get posts count from users table (cached)
+      // Get posts count by counting published posts (more accurate)
       const postsResult = await client.query(
-        'SELECT COALESCE(posts_count, 0) as count FROM users WHERE user_id = $1',
-        [userId]
+        'SELECT COUNT(*) as count FROM posts WHERE author_id = $1 AND status = $2',
+        [userId, 'published']
       );
       const postsCount = parseInt(postsResult.rows[0]?.count || 0);
       
