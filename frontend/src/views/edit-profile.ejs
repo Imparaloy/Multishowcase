@@ -26,16 +26,14 @@
 						</div>
 
 						<form id="editProfileForm" class="space-y-6">
-							<!-- Profile Picture -->
+							<!-- Profile Picture (Display Only) -->
 							<div class="flex items-center gap-4">
 								<div class="w-20 h-20 bg-gray-500 rounded-full flex items-center justify-center">
 									<i data-feather="user" class="w-8 h-8 text-gray-300"></i>
 								</div>
 								<div>
-									<button type="button" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">
-										Change photo
-									</button>
-									<p class="text-xs text-gray-400 mt-1">JPG, GIF or PNG. Max 2MB.</p>
+									<p class="text-sm text-gray-400">Profile picture</p>
+									<p class="text-xs text-gray-500 mt-1">Profile picture editing is not available yet</p>
 								</div>
 							</div>
 
@@ -264,7 +262,7 @@
 				}
 				
 				// Show loading state
-				const originalText = this.innerHTML;
+				const originalContent = this.innerHTML;
 				this.innerHTML = '<i data-feather="loader" class="w-4 h-4 animate-spin"></i> Deleting...';
 				this.disabled = true;
 				feather.replace();
@@ -286,11 +284,11 @@
 						alert(result.message || 'Error deleting account');
 					}
 				} catch (error) {
-					console.error('Error:', error);
+					console.error('Error deleting account:', error);
 					alert('Network error. Please try again.');
 				} finally {
 					// Restore button state
-					this.innerHTML = originalText;
+					this.innerHTML = originalContent;
 					this.disabled = false;
 					feather.replace();
 				}

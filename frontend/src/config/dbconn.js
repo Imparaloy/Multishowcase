@@ -12,7 +12,7 @@ const pool = new Pool({
   password: process.env.PGPASSWORD,
   database: process.env.PGDATABASE,
   port: process.env.PGPORT || 5432,
-  ssl: process.env.NODE_ENV === 'production'
+  ssl: process.env.RDS_SSL === 'true' || process.env.NODE_ENV === 'production'
   ? { rejectUnauthorized: false }
   : false,
 });
