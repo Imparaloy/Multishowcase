@@ -380,18 +380,81 @@ export async function leaveGroupHandler(req, res) {
       return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     }
 
-    const result = await pool.query(
-      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
-      [id, user_id]
+    // Check if user is the owner
+    const { rows: groupRows } = await pool.query(
+      'SELECT owner_id FROM groups WHERE group_id = $1',
+      [id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่มหรือคุณไม่ได้เป็นสมาชิก' });
+    if (groupRows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
     }
 
-    return res.json({ ok: true, message: 'ออกจากกลุ่มเรียบร้อย' });
+    const group = groupRows[0];
+    
+    // If user is the owner, check if there are other members to transfer ownership to
+    if (group.owner_id === user_id) {
+      const { rows: memberRows } = await pool.query(
+        `SELECT user_id, username, display_name
+         FROM group_members gm
+         JOIN users u ON u.user_id = gm.user_id
+         WHERE gm.group_id = $1 AND gm.user_id != $2
+         ORDER BY gm.created_at ASC
+         LIMIT 1`,
+        [id, user_id]
+      );
+
+      if (memberRows.length > 0) {
+        // Transfer ownership to the oldest member
+        const newOwner = memberRows[0];
+        await pool.query('BEGIN');
+        
+        // Update group ownership
+        await pool.query(
+          'UPDATE groups SET owner_id = $1 WHERE group_id = $2',
+          [newOwner.user_id, id]
+        );
+        
+        // Remove old owner from members
+        await pool.query(
+          'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+          [id, user_id]
+        );
+        
+        await pool.query('COMMIT');
+        
+        return res.json({
+          ok: true,
+          message: `ออกจากกลุ่มเรียบร้อย และได้โอนย้ายตำแหน่งเจ้าของกลุ่มให้กับ ${newOwner.display_name || newOwner.username}`
+        });
+      } else {
+        // If no other members, delete the group
+        await pool.query('DELETE FROM groups WHERE group_id = $1', [id]);
+        return res.json({
+          ok: true,
+          message: 'ออกจากกลุ่มเรียบร้อย และได้ลบกลุ่มเนื่องจากไม่มีสมาชิกคนอื่น'
+        });
+      }
+    } else {
+      // Regular member leaving
+      const result = await pool.query(
+        'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+        [id, user_id]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่มหรือคุณไม่ได้เป็นสมาชิก' });
+      }
+
+      return res.json({ ok: true, message: 'ออกจากกลุ่มเรียบร้อย' });
+    }
   } catch (e) {
     console.error('Failed to leave group:', e);
+    try {
+      await pool.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Rollback failed:', rollbackErr);
+    }
     return res.status(500).json({ ok: false, message: 'ไม่สามารถออกจากกลุ่มได้' });
   }
 }
@@ -580,24 +643,186 @@ export async function createGroupPost(req, res) {
       return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
     }
 
-    const [group] = await fetchGroups({ groupId: id });
-    if (!group) {
+    // Check if group exists
+    const { rows: groupRows } = await pool.query(
+      'SELECT owner_id FROM groups WHERE group_id = $1',
+      [id]
+    );
+
+    if (groupRows.length === 0) {
       return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
     }
 
-    const isOwner = group.ownerId === author_id;
-    const isMember = group.members?.some((member) => member.user_id === author_id) || false;
+    const group = groupRows[0];
+    const isOwner = group.owner_id === author_id;
+
+    // Check if user is a member
+    const { rows: memberRows } = await pool.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, author_id]
+    );
+
+    const isMember = memberRows.length > 0;
 
     if (!isOwner && !isMember) {
       return res.status(403).json({ ok: false, message: 'คุณไม่ได้เป็นสมาชิกกลุ่มนี้' });
     }
 
+    // Set group_id in request body and create post
     req.body = { ...req.body, group_id: id };
 
+    // Use the existing createPost function from posts.controller
     return await createStandalonePost(req, res);
   } catch (e) {
     console.error('Failed to create post in group:', e);
     return res.status(500).json({ ok: false, message: 'ไม่สามารถสร้างโพสต์ได้' });
+  }
+}
+
+// Change member role (Owner only)
+export async function changeMemberRoleHandler(req, res) {
+  try {
+    const { id, username } = req.params;
+    const { role } = req.body;
+    
+    const currentUser = await loadCurrentUser(req, { res });
+    const user_id = currentUser?.user_id;
+
+    if (!user_id) {
+      return res.status(401).json({ ok: false, message: 'กรุณาเข้าสู่ระบบ' });
+    }
+
+    // Validate role
+    if (!['member', 'owner'].includes(role)) {
+      return res.status(400).json({ ok: false, message: 'บทบาทไม่ถูกต้อง' });
+    }
+
+    // Check if current user is the group owner
+    const ownership = await assertGroupOwner(id, user_id);
+    if (!ownership.ok) {
+      if (ownership.reason === 'not_found') {
+        return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+      }
+      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์เปลี่ยนบทบาทในกลุ่มนี้' });
+    }
+
+    // Get the target user's ID from username
+    const { rows: userRows } = await pool.query(
+      'SELECT user_id FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบผู้ใช้' });
+    }
+
+    const targetUserId = userRows[0].user_id;
+
+    // Prevent owner from changing their own role
+    if (targetUserId === user_id) {
+      return res.status(400).json({ ok: false, message: 'ไม่สามารถเปลี่ยนบทบาทของตัวเองได้' });
+    }
+
+    await pool.query('BEGIN');
+
+    if (role === 'owner') {
+      // Transfer ownership
+      await pool.query(
+        'UPDATE groups SET owner_id = $1 WHERE group_id = $2',
+        [targetUserId, id]
+      );
+      
+      // Ensure new owner is in group_members
+      await pool.query(
+        `INSERT INTO group_members (group_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (group_id, user_id) DO NOTHING`,
+        [id, targetUserId]
+      );
+      
+      // Add old owner as a member if not already
+      await pool.query(
+        `INSERT INTO group_members (group_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (group_id, user_id) DO NOTHING`,
+        [id, user_id]
+      );
+    } else {
+      // Just ensure they're a member (role is determined by owner_id comparison)
+      await pool.query(
+        `INSERT INTO group_members (group_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (group_id, user_id) DO NOTHING`,
+        [id, targetUserId]
+      );
+    }
+
+    await pool.query('COMMIT');
+
+    return res.json({ ok: true, message: 'เปลี่ยนบทบาทเรียบร้อย' });
+  } catch (e) {
+    console.error('Failed to change member role:', e);
+    try {
+      await pool.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Rollback failed:', rollbackErr);
+    }
+    return res.status(500).json({ ok: false, message: 'ไม่สามารถเปลี่ยนบทบาทได้' });
+  }
+}
+
+// Remove member from group (Owner only)
+export async function removeMemberHandler(req, res) {
+  try {
+    const { id, username } = req.params;
+    
+    const currentUser = await loadCurrentUser(req, { res });
+    const user_id = currentUser?.user_id;
+
+    if (!user_id) {
+      return res.status(401).json({ ok: false, message: 'กรุณาเข้าสู่ระบบ' });
+    }
+
+    // Check if current user is the group owner
+    const ownership = await assertGroupOwner(id, user_id);
+    if (!ownership.ok) {
+      if (ownership.reason === 'not_found') {
+        return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+      }
+      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ลบสมาชิกจากกลุ่มนี้' });
+    }
+
+    // Get the target user's ID from username
+    const { rows: userRows } = await pool.query(
+      'SELECT user_id FROM users WHERE username = $1',
+      [username]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบผู้ใช้' });
+    }
+
+    const targetUserId = userRows[0].user_id;
+
+    // Prevent owner from removing themselves
+    if (targetUserId === user_id) {
+      return res.status(400).json({ ok: false, message: 'ไม่สามารถลบตัวเองออกจากกลุ่มได้ กรุณาใช้ฟังก์ชันออกจากกลุ่มแทน' });
+    }
+
+    // Remove member from group
+    const result = await pool.query(
+      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, targetUserId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบสมาชิกนี้ในกลุ่ม' });
+    }
+
+    return res.json({ ok: true, message: 'ลบสมาชิกเรียบร้อย' });
+  } catch (e) {
+    console.error('Failed to remove member:', e);
+    return res.status(500).json({ ok: false, message: 'ไม่สามารถลบสมาชิกได้' });
   }
 }
 

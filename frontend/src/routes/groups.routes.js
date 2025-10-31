@@ -8,7 +8,9 @@ import {
   deleteGroupHandler,
   createGroupPost,
   approveJoinRequestHandler,
-  rejectJoinRequestHandler
+  rejectJoinRequestHandler,
+  changeMemberRoleHandler,
+  removeMemberHandler
 } from '../controllers/groups.controller.js';
 import { authenticateCognitoJWT, requireAuth, attachUserToLocals } from '../middlewares/authenticate.js';
 
@@ -39,5 +41,11 @@ router.delete('/groups/:id', authenticateCognitoJWT, requireAuth, deleteGroupHan
 
 // สร้างโพสต์ในกลุ่ม
 router.post('/groups/:id/posts', authenticateCognitoJWT, requireAuth, createGroupPost);
+
+// เปลี่ยนบทบาทสมาชิก (เฉพาะเจ้าของ)
+router.put('/groups/:id/members/:username/role', authenticateCognitoJWT, requireAuth, changeMemberRoleHandler);
+
+// ลบสมาชิกออกจากกลุ่ม (เฉพาะเจ้าของ)
+router.delete('/groups/:id/members/:username', authenticateCognitoJWT, requireAuth, removeMemberHandler);
 
 export default router;
