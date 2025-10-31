@@ -173,10 +173,8 @@ export async function renderProfilePage(req, res) {
           };
         });
         
-        // Get user statistics
+        // Get user statistics and check follow status
         const userStats = await getUserStats(profileUser.user_id);
-        
-        // Check if current user is following this profile user
         const isFollowingUser = await isFollowing(userRecord?.user_id, profileUser.user_id);
       }
       
@@ -190,12 +188,12 @@ export async function renderProfilePage(req, res) {
           bio: profileUser.bio || "",
           avatar_url: profileUser.avatar_url || "",
           created_at: profileUser.created_at,
-          stats: await getUserStats(profileUser.user_id)
+          stats: userStats
         },
         currentUser: viewer,
         activePage: "profile",
         feed,
-        isFollowing: await isFollowing(userRecord?.user_id, profileUser.user_id)
+        isFollowing: isFollowingUser
       });
       return;
     } catch (error) {

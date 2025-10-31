@@ -419,6 +419,22 @@ async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_follows_follower_following ON follows(follower_id, following_id)');
     
+    // Initialize posts_count for existing users
+    try {
+      console.log('Initializing posts_count for existing users...');
+      await client.query(`
+        UPDATE users
+        SET posts_count = COALESCE(
+          (SELECT COUNT(*) FROM posts WHERE author_id = users.user_id AND status = 'published'),
+          0
+        )
+        WHERE posts_count IS NULL
+      `);
+      console.log('✅ Posts count initialized for existing users');
+    } catch (err) {
+      console.error('❌ Error initializing posts count:', err);
+    }
+
     console.log('✅ Database tables initialized successfully');
   } catch (err) {
     console.error('❌ Error initializing database:', err);
