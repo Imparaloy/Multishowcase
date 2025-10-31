@@ -57,7 +57,7 @@
 								/>
 							</div>
 
-							<!-- Username (read-only) -->
+							<!-- Username (editable) -->
 							<div>
 								<label for="username" class="block text-sm font-medium text-gray-300 mb-2">
 									Username
@@ -65,29 +65,13 @@
 								<input
 									type="text"
 									id="username"
-									value="@<%= meUser.username %>"
-									readonly
-									class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-400 cursor-not-allowed"
+									name="username"
+									value="<%= meUser.username %>"
+									class="w-full px-4 py-2 bg-[#1f2e5f] border border-gray-600 rounded-lg focus:outline-none focus:border-purple-500 text-white"
+									placeholder="Enter your username"
+									required
 								/>
-								<p class="text-xs text-gray-400 mt-1">Username cannot be changed</p>
-							</div>
-
-							<!-- Bio -->
-							<div>
-								<label for="bio" class="block text-sm font-medium text-gray-300 mb-2">
-									Bio
-								</label>
-								<textarea
-									id="bio"
-									name="bio"
-									rows="4"
-									class="w-full px-4 py-2 bg-[#1f2e5f] border border-gray-600 rounded-lg focus:outline-none focus:border-purple-500 text-white resize-none"
-									placeholder="Tell us about yourself"
-									maxlength="160"
-								><%= meUser.bio || '' %></textarea>
-								<p class="text-xs text-gray-400 mt-1">
-									<span id="bioCount"><%= meUser.bio ? meUser.bio.length : 0 %></span>/160 characters
-								</p>
+								<p class="text-xs text-gray-400 mt-1">Username must be unique and 50 characters or less</p>
 							</div>
 
 							<!-- Email -->
@@ -151,14 +135,6 @@
 		<script>
 			feather.replace();
 
-			// Bio character counter
-			const bioTextarea = document.getElementById('bio');
-			const bioCount = document.getElementById('bioCount');
-			
-			bioTextarea.addEventListener('input', function() {
-				bioCount.textContent = this.value.length;
-			});
-
 			// Form validation
 			function validateForm(data) {
 				const errors = [];
@@ -166,8 +142,17 @@
 				// Display name validation
 				if (!data.displayName || data.displayName.trim().length === 0) {
 					errors.push('Display name is required');
-				} else if (data.displayName.trim().length > 50) {
-					errors.push('Display name must be 50 characters or less');
+				} else if (data.displayName.trim().length > 100) {
+					errors.push('Display name must be 100 characters or less');
+				}
+				
+				// Username validation
+				if (!data.username || data.username.trim().length === 0) {
+					errors.push('Username is required');
+				} else if (data.username.trim().length > 50) {
+					errors.push('Username must be 50 characters or less');
+				} else if (!/^[a-zA-Z0-9_]+$/.test(data.username.trim())) {
+					errors.push('Username can only contain letters, numbers, and underscores');
 				}
 				
 				// Email validation
@@ -176,11 +161,6 @@
 					if (!emailRegex.test(data.email)) {
 						errors.push('Please enter a valid email address');
 					}
-				}
-				
-				// Bio validation
-				if (data.bio && data.bio.length > 160) {
-					errors.push('Bio must be 160 characters or less');
 				}
 				
 				return errors;

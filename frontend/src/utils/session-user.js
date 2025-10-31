@@ -92,7 +92,6 @@ function mergeRecordWithClaims(record, claims = {}) {
   const groups = claims.groups || payload['cognito:groups'] || [];
   const displayName = record.display_name || deriveDisplayName(claims, record.username);
   const email = record.email || deriveEmail(claims);
-  const bio = record.bio ?? payload['custom:bio'] ?? '';
 
   return {
     ...record,
@@ -102,7 +101,6 @@ function mergeRecordWithClaims(record, claims = {}) {
     display_name: record.display_name || displayName || record.username,
     displayName: displayName || record.username,
     email,
-    bio,
     groups,
     payload,
     rawClaims: claims
@@ -115,7 +113,6 @@ function fallbackRecordFromClaims(claims = {}) {
 
   const displayName = deriveDisplayName(claims, username) || username;
   const email = deriveEmail(claims);
-  const bio = claims.payload?.['custom:bio'] || '';
 
   return {
     user_id: null,
@@ -123,7 +120,6 @@ function fallbackRecordFromClaims(claims = {}) {
     username,
     display_name: displayName,
     email,
-    bio,
     created_at: null,
     updated_at: null
   };
@@ -194,8 +190,7 @@ export function buildViewUser(req, userRecord = null) {
       me: {
         name: GUEST_VIEWER.displayName,
         username: GUEST_VIEWER.username,
-        email: '',
-        bio: ''
+        email: ''
       },
       viewer: { ...GUEST_VIEWER }
     };
@@ -213,15 +208,13 @@ export function buildViewUser(req, userRecord = null) {
     payload.email ||
     fallbackEmailFromSub(claims.sub);
 
-  const bio = record?.bio ?? payload['custom:bio'] ?? '';
   const groups = record?.groups || claims.groups || payload['cognito:groups'] || [];
 
   return {
     me: {
       name: displayName,
       username,
-      email,
-      bio
+      email
     },
     viewer: {
       displayName,
@@ -237,8 +230,7 @@ export const guestView = {
   me: {
     name: GUEST_VIEWER.displayName,
     username: GUEST_VIEWER.username,
-    email: '',
-    bio: ''
+    email: ''
   },
   viewer: { ...GUEST_VIEWER }
 };

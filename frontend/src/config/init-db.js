@@ -27,15 +27,15 @@ async function initializeDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        cognito_sub VARCHAR(255) UNIQUE NOT NULL,
-        username VARCHAR(255) UNIQUE NOT NULL,
-        email VARCHAR(255),
-        display_name VARCHAR(255),
-        bio TEXT,
-        avatar_url VARCHAR(500),
-        posts_count INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        cognito_sub TEXT UNIQUE NOT NULL,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        display_name VARCHAR(100),
+        email VARCHAR(100) UNIQUE NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        status TEXT DEFAULT 'active',
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ DEFAULT now(),
+        deleted_at TIMESTAMPTZ
       )
     `);
     

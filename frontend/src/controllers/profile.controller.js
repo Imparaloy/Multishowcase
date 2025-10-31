@@ -167,7 +167,6 @@ export async function renderProfilePage(req, res) {
       name: profileUser.display_name || profileUser.username,
       username: profileUser.username,
       email: profileUser.email || "",
-      bio: profileUser.bio || "",
       avatar_url: profileUser.avatar_url || "",
       created_at: profileUser.created_at,
       stats
@@ -193,8 +192,14 @@ export async function renderProfilePage(req, res) {
   }
 }
 
-export function renderProfileEditPage(req, res) {
-  const { me, viewer } = buildViewUser(req);
+export async function renderProfileEditPage(req, res) {
+  const currentUser = await loadCurrentUser(req, { res });
+  
+  if (!currentUser?.user_id && !currentUser?.cognito_sub) {
+    return res.status(401).send("User not authenticated");
+  }
+  
+  const { me, viewer } = buildViewUser(req, currentUser);
   res.render("edit-profile", {
     me,
     currentUser: viewer,
@@ -203,11 +208,10 @@ export function renderProfileEditPage(req, res) {
 }
 
 export async function updateProfile(req, res) {
-  const { displayName, bio, email } = req.body;
+  const { displayName, username, email } = req.body;
   const currentUser = await loadCurrentUser(req, { res });
-  const username = currentUser?.username || req.user?.username;
-
-  if (!username) {
+  
+  if (!currentUser?.user_id && !currentUser?.cognito_sub) {
     return res.status(401).json({
       ok: false,
       message: "User not authenticated"
@@ -216,22 +220,31 @@ export async function updateProfile(req, res) {
 
   const safeTrim = (value) => (typeof value === "string" ? value.trim() : undefined);
   const trimmedDisplayName = safeTrim(displayName);
-  const trimmedBio = safeTrim(bio);
+  const trimmedUsername = safeTrim(username);
   const trimmedEmail = safeTrim(email);
 
   // Validation
-  if (trimmedDisplayName && trimmedDisplayName.length > 50) {
+  if (trimmedDisplayName && trimmedDisplayName.length > 100) {
     return res.status(400).json({
       ok: false,
-      message: "Display name must be 50 characters or less"
+      message: "Display name must be 100 characters or less"
     });
   }
   
-  if (trimmedBio && trimmedBio.length > 160) {
-    return res.status(400).json({
-      ok: false,
-      message: "Bio must be 160 characters or less"
-    });
+  if (trimmedUsername) {
+    if (trimmedUsername.length > 50) {
+      return res.status(400).json({
+        ok: false,
+        message: "Username must be 50 characters or less"
+      });
+    }
+    
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      return res.status(400).json({
+        ok: false,
+        message: "Username can only contain letters, numbers, and underscores"
+      });
+    }
   }
   
   if (trimmedEmail) {
@@ -244,108 +257,83 @@ export async function updateProfile(req, res) {
     }
   }
 
-  // Check if Cognito is available
-  if (!process.env.COGNITO_USER_POOL_ID || !cognitoClient) {
-    console.log('Cognito not available, updating local database only');
-    
-    try {
-      await pool.query(
-        `UPDATE users
-         SET display_name = COALESCE($1, display_name),
-             bio = COALESCE($2, bio),
-             email = COALESCE($3, email),
-             updated_at = NOW()
-         WHERE username = $4`,
-        [trimmedDisplayName ?? null, trimmedBio ?? null, trimmedEmail ?? null, username]
-      );
-      await loadCurrentUser(req, { res, forceReload: true });
-      
-      return res.json({
-        ok: true,
-        message: "Profile updated successfully",
-        data: {
-          displayName: trimmedDisplayName || '',
-          bio: trimmedBio || '',
-          email: trimmedEmail || ''
-        }
-      });
-    } catch (error) {
-      console.error("Failed to update profile:", error);
-      return res.status(500).json({
-        ok: false,
-        message: "Failed to update profile"
-      });
-    }
-  }
-
-  // Update in Cognito
+  const client = await pool.connect();
+  
   try {
-    const userAttributes = [];
+    await client.query('BEGIN');
     
-    if (trimmedDisplayName) {
-      userAttributes.push({ Name: "name", Value: trimmedDisplayName });
+    // Check for duplicate username if it's being changed
+    if (trimmedUsername && trimmedUsername !== currentUser.username) {
+      const { rows: existingUser } = await client.query(
+        'SELECT user_id FROM users WHERE username = $1 AND user_id != $2',
+        [trimmedUsername, currentUser.user_id]
+      );
+      
+      if (existingUser.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          ok: false,
+          message: "Username is already taken"
+        });
+      }
     }
     
-    if (trimmedBio) {
-      userAttributes.push({ Name: "custom:bio", Value: trimmedBio });
+    // Check for duplicate email if it's being changed
+    if (trimmedEmail && trimmedEmail !== currentUser.email) {
+      const { rows: existingEmail } = await client.query(
+        'SELECT user_id FROM users WHERE email = $1 AND user_id != $2',
+        [trimmedEmail, currentUser.user_id]
+      );
+      
+      if (existingEmail.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          ok: false,
+          message: "Email is already in use"
+        });
+      }
     }
-    
-    if (trimmedEmail) {
-      userAttributes.push({ Name: "email", Value: trimmedEmail });
-    }
-
-    if (userAttributes.length === 0) {
-      return res.status(400).json({
-        ok: false,
-        message: "At least one field must be provided to update"
-      });
-    }
-
-    const command = new AdminUpdateUserAttributesCommand({
-      UserPoolId: process.env.COGNITO_USER_POOL_ID,
-      Username: username,
-      UserAttributes: userAttributes,
-    });
-
-    await cognitoClient.send(command);
 
     // Update local database
-    await pool.query(
+    await client.query(
       `UPDATE users
        SET display_name = COALESCE($1, display_name),
-           bio = COALESCE($2, bio),
+           username = COALESCE($2, username),
            email = COALESCE($3, email),
            updated_at = NOW()
-       WHERE username = $4`,
-      [trimmedDisplayName ?? null, trimmedBio ?? null, trimmedEmail ?? null, username]
+       WHERE user_id = $4 OR cognito_sub = $5`,
+      [
+        trimmedDisplayName ?? null,
+        trimmedUsername ?? null,
+        trimmedEmail ?? null,
+        currentUser.user_id,
+        currentUser.cognito_sub
+      ]
     );
-
+    
+    await client.query('COMMIT');
+    
+    // Reload current user data
     await loadCurrentUser(req, { res, forceReload: true });
-
+    
     return res.json({
       ok: true,
       message: "Profile updated successfully",
       data: {
-        displayName: trimmedDisplayName || '',
-        bio: trimmedBio || '',
-        email: trimmedEmail || ''
+        displayName: trimmedDisplayName || currentUser.display_name,
+        username: trimmedUsername || currentUser.username,
+        email: trimmedEmail || currentUser.email
       }
     });
 
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error("Error updating profile:", error);
     
-    if (error.name === 'InvalidParameterException') {
+    if (error.code === '23505') { // Unique constraint violation
       return res.status(400).json({
         ok: false,
-        message: "Invalid parameter: " + (error.message || "Unknown parameter error")
-      });
-    }
-    
-    if (error.name === 'UserNotFoundException') {
-      return res.status(404).json({
-        ok: false,
-        message: "User not found"
+        message: "Username or email is already in use"
       });
     }
     
@@ -353,6 +341,8 @@ export async function updateProfile(req, res) {
       ok: false,
       message: "Server error. Please try again later."
     });
+  } finally {
+    client.release();
   }
 }
 
