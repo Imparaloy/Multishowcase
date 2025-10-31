@@ -196,7 +196,10 @@
 				try {
 					const response = await fetch('/profile/edit', {
 						method: 'POST',
-						body: formData,
+						headers: {
+							'Content-Type': 'application/json',
+						},
+						body: JSON.stringify(data),
 					});
 
 					const result = await response.json();

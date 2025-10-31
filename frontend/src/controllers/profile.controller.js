@@ -199,7 +199,7 @@ export async function renderProfileEditPage(req, res) {
 }
 
 export async function updateProfile(req, res) {
-  const { displayName, username, email } = req.body;
+  const { displayName, username, email, avatar_url } = req.body;
   const currentUser = await loadCurrentUser(req, { res });
   
   if (!currentUser?.user_id && !currentUser?.cognito_sub) {
@@ -291,6 +291,7 @@ export async function updateProfile(req, res) {
        SET display_name = COALESCE($1, display_name),
            username = COALESCE($2, username),
            email = COALESCE($3, email),
+           avatar_url = COALESCE($6, avatar_url),
            updated_at = NOW()
        WHERE user_id = $4 OR cognito_sub = $5`,
       [
@@ -298,7 +299,8 @@ export async function updateProfile(req, res) {
         trimmedUsername ?? null,
         trimmedEmail ?? null,
         currentUser.user_id,
-        currentUser.cognito_sub
+        currentUser.cognito_sub,
+        avatar_url ?? null
       ]
     );
     
@@ -313,7 +315,8 @@ export async function updateProfile(req, res) {
       data: {
         displayName: trimmedDisplayName || currentUser.display_name,
         username: trimmedUsername || currentUser.username,
-        email: trimmedEmail || currentUser.email
+        email: trimmedEmail || currentUser.email,
+        avatar_url: avatar_url || currentUser.avatar_url
       }
     });
 
