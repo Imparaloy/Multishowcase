@@ -1,4 +1,7 @@
-import { AdminUpdateUserAttributesCommand } from "@aws-sdk/client-cognito-identity-provider";
+import {
+  AdminDeleteUserCommand,
+  AdminUpdateUserAttributesCommand,
+} from "@aws-sdk/client-cognito-identity-provider";
 import { cognitoClient } from "../services/cognito.service.js";
 import pool from "../config/dbconn.js";
 import { getUnifiedFeed } from "./feed.controller.js";
@@ -242,4 +245,123 @@ export async function updateProfile(req, res) {
       message: "Server error. Please try again later."
     });
   }
+}
+
+export async function deleteAccount(req, res) {
+  const currentUser = await loadCurrentUser(req, { res });
+  const username = currentUser?.username || req.user?.username;
+  let userId = currentUser?.user_id;
+
+  if (!username || !userId) {
+    if (!username) {
+      return res.status(401).json({
+        ok: false,
+        message: "User not authenticated",
+      });
+    }
+
+    try {
+      const { rows } = await pool.query(
+        "SELECT user_id FROM users WHERE username = $1",
+        [username]
+      );
+      userId = rows[0]?.user_id || null;
+    } catch (error) {
+      console.error("Failed to locate user for deletion:", error);
+      return res.status(500).json({
+        ok: false,
+        message: "Unable to locate user record for deletion",
+      });
+    }
+  }
+
+  if (!userId) {
+    return res.status(404).json({
+      ok: false,
+      message: "User record not found",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Clean up user owned content before removing the primary record
+    await client.query("DELETE FROM likes WHERE user_id = $1", [userId]);
+    await client.query("DELETE FROM comments WHERE user_id = $1", [userId]);
+    await client.query("DELETE FROM group_join_requests WHERE user_id = $1", [userId]);
+    await client.query("DELETE FROM group_members WHERE user_id = $1", [userId]);
+
+    // Remove posts (cascade takes care of media and dependent likes)
+    await client.query("DELETE FROM posts WHERE author_id = $1", [userId]);
+
+    // Remove any groups owned by the user (members / requests cascade)
+    await client.query("DELETE FROM groups WHERE owner_id = $1", [userId]);
+
+    // Clear reports created by or targeting this user if table exists
+    const { rows: reportTable } = await client.query(
+      "SELECT to_regclass('public.reports') AS oid"
+    );
+    if (reportTable[0]?.oid) {
+      await client.query(
+        `DELETE FROM reports
+         WHERE reporter_id::text = $1
+            OR (report_type = 'user' AND target_id::text = $1)`,
+        [userId]
+      );
+    }
+
+    await client.query("DELETE FROM users WHERE user_id = $1", [userId]);
+
+    if (process.env.COGNITO_USER_POOL_ID && cognitoClient) {
+      try {
+        const command = new AdminDeleteUserCommand({
+          UserPoolId: process.env.COGNITO_USER_POOL_ID,
+          Username: username,
+        });
+        await cognitoClient.send(command);
+      } catch (error) {
+        if (error?.name === "UserNotFoundException") {
+          console.warn("Cognito user already removed, continuing delete flow");
+        } else {
+          throw Object.assign(new Error("COGNITO_DELETE_FAILED"), { cause: error });
+        }
+      }
+    } else {
+      console.log("Cognito not available, skipped remote delete for development");
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    if (error.message === "COGNITO_DELETE_FAILED") {
+      console.error("Failed to delete user in Cognito:", error.cause);
+      return res.status(502).json({
+        ok: false,
+        message: "Failed to delete account in Cognito. No changes were applied.",
+      });
+    }
+
+    console.error("Error deleting account:", error);
+    return res.status(500).json({
+      ok: false,
+      message: "Failed to delete account. Please try again later.",
+    });
+  } finally {
+    client.release();
+  }
+
+  res.clearCookie("access_token");
+  res.clearCookie("id_token");
+  res.clearCookie("refresh_token");
+
+  req.user = null;
+  req.currentUser = null;
+
+  return res.json({
+    ok: true,
+    message: "Account deleted successfully",
+  });
 }

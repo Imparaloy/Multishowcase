@@ -3,6 +3,7 @@ import {
   renderProfilePage,
   renderProfileEditPage,
   updateProfile,
+  deleteAccount,
 } from '../controllers/profile.controller.js';
 import {
   authenticateCognitoJWT,
@@ -26,6 +27,13 @@ router.post(
   authenticateCognitoJWT,
   requireAuth,
   updateProfile
+);
+
+router.post(
+  '/profile/delete',
+  authenticateCognitoJWT,
+  requireAuth,
+  deleteAccount
 );
 
 export default router;
