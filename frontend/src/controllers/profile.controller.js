@@ -213,14 +213,14 @@ export async function renderProfilePage(req, res) {
   const { me, viewer } = buildViewUser(req, userRecord);
   
   // Get user statistics for the profile being viewed
-  const profileUserId = profileUser ? profileUser.user_id : userRecord?.user_id;
+  const profileUserId = userRecord?.user_id;
   const userStats = profileUserId ? await getUserStats(profileUserId) : { postsCount: 0, followersCount: 0, followingCount: 0 };
 
   res.render("profile", {
     me: {
       ...me,
-      avatar_url: profileUser?.avatar_url || userRecord?.avatar_url || "",
-      created_at: profileUser?.created_at || userRecord?.created_at,
+      avatar_url: userRecord?.avatar_url || "",
+      created_at: userRecord?.created_at,
       stats: userStats
     },
     currentUser: viewer,
