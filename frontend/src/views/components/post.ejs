@@ -109,7 +109,7 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
 
   <% if (heroMedia) { %>
     <div class="mt-3 overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833] shadow-md">
-      <%= ejs.render(mediaTag(heroMedia)) %>
+      <%- mediaTag(heroMedia) %>
     </div>
   <% } %>
 
@@ -117,7 +117,7 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
     <div class="mt-3 grid gap-3 sm:grid-cols-2">
       <% galleryMedia.forEach(function(u) { %>
         <div class="overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833] shadow-md">
-          <%= ejs.render(mediaTag(u)) %>
+          <%- mediaTag(u) %>
         </div>
       <% }); %>
     </div>
