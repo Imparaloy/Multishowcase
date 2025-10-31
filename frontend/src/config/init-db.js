@@ -6,7 +6,7 @@ async function initializeDatabase() {
   try {
     console.log('Initializing database tables...');
     
-    // Create users table
+    // Create users table first (no dependencies)
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -21,7 +21,19 @@ async function initializeDatabase() {
       )
     `);
     
-    // Create posts table
+    // Create groups table (depends only on users)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS groups (
+        group_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        owner_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Create posts table (depends on users and groups)
     await client.query(`
       CREATE TABLE IF NOT EXISTS posts (
         post_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -37,7 +49,7 @@ async function initializeDatabase() {
       )
     `);
     
-    // Create post_media table
+    // Create post_media table (depends on posts)
     await client.query(`
       CREATE TABLE IF NOT EXISTS post_media (
         post_media_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -53,7 +65,7 @@ async function initializeDatabase() {
       )
     `);
     
-    // Create comments table
+    // Create comments table (depends on posts and users)
     await client.query(`
       CREATE TABLE IF NOT EXISTS comments (
         comment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -65,7 +77,7 @@ async function initializeDatabase() {
       )
     `);
     
-    // Create likes table
+    // Create likes table (depends on posts and users)
     await client.query(`
       CREATE TABLE IF NOT EXISTS likes (
         like_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -73,18 +85,6 @@ async function initializeDatabase() {
         user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(post_id, user_id)
-      )
-    `);
-    
-    // Create groups table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS groups (
-        group_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        owner_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
