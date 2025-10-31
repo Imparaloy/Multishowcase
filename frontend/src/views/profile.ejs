@@ -12,40 +12,34 @@
 			<%- include('components/sidebar') %>
 
 			<main class="flex-1 border-x p-2 rounded border-gray-700">
-				<% const meUser = typeof me !== 'undefined' ? me : { name: 'Name', username: 'username' }; %>
-				<% const viewer = typeof currentUser !== 'undefined' ? currentUser : null; %>
-				<% const isOwner = viewer && meUser && viewer.username === meUser.username; %>
-
 				<!-- Profile header -->
 				<section class="px-4 pt-6">
 					<div class="bg-[#182244] rounded-2xl p-6 border border-gray-700/60">
 						<div class="flex items-start justify-between gap-4">
 							<div class="flex items-start gap-4">
-								<% if (meUser.avatar_url) { %>
-									<img src="<%= meUser.avatar_url %>" alt="<%= meUser.name %>" class="w-16 h-16 rounded-full object-cover">
+								<% if (me.avatar_url) { %>
+									<img src="<%= me.avatar_url %>" alt="<%= me.name %>" class="w-16 h-16 rounded-full object-cover">
 								<% } else { %>
 									<div class="w-16 h-16 bg-gray-500 rounded-full flex items-center justify-center">
 										<i data-feather="user" class="w-8 h-8 text-gray-300"></i>
 									</div>
 								<% } %>
 								<div>
-									<h1 class="text-2xl font-bold leading-tight"><%= meUser.name %></h1>
-									<p class="text-gray-400">@<%= meUser.username %></p>
-									<% if (meUser.bio) { %>
-										<p class="text-gray-300 mt-2"><%= meUser.bio %></p>
+									<h1 class="text-2xl font-bold leading-tight"><%= me.name %></h1>
+									<p class="text-gray-400">@<%= me.username %></p>
+									<% if (me.bio) { %>
+										<p class="text-gray-300 mt-2"><%= me.bio %></p>
 									<% } %>
-									<% if (meUser.created_at) { %>
-										<p class="text-gray-500 text-sm mt-1">Joined <%= new Date(meUser.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) %></p>
+									<% if (me.created_at) { %>
+										<p class="text-gray-500 text-sm mt-1">Joined <%= new Date(me.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) %></p>
 									<% } %>
 								</div>
 							</div>
 							<div class="flex gap-2">
-								<% if (isOwner) { %>
-									<a href="/profile/edit" class="px-6 py-3 rounded-full bg-gray-700 hover:bg-gray-600 text-sm font-semibold flex items-center gap-2">
-										<i data-feather="edit-3" class="w-4 h-4 flex-shrink-0"></i>
-										<span>Edit profile</span>
-									</a>
-								<% } %>
+								<a href="/profile/edit" class="px-6 py-3 rounded-full bg-gray-700 hover:bg-gray-600 text-sm font-semibold flex items-center gap-2">
+									<i data-feather="edit-3" class="w-4 h-4 flex-shrink-0"></i>
+									<span>Edit profile</span>
+								</a>
 							</div>
 						</div>
 
@@ -53,21 +47,21 @@
 							<div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between border border-gray-600/60">
 								<div>
 									<p class="text-xs text-gray-400 uppercase">Posts</p>
-									<p class="font-semibold text-white" data-post-count><%= meUser.stats ? meUser.stats.postsCount : 0 %></p>
+									<p class="font-semibold text-white"><%= me.stats ? me.stats.postsCount : 0 %></p>
 								</div>
 								<i data-feather="file-text" class="w-5 h-5 text-purple-200"></i>
 							</div>
 							<div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between border border-gray-600/60">
 								<div>
 									<p class="text-xs text-gray-400 uppercase">Followers</p>
-									<p class="font-semibold text-white"><%= meUser.stats ? meUser.stats.followersCount : 0 %></p>
+									<p class="font-semibold text-white"><%= me.stats ? me.stats.followersCount : 0 %></p>
 								</div>
 								<i data-feather="users" class="w-5 h-5 text-purple-200"></i>
 							</div>
 							<div class="bg-[#1f2e5f] rounded-xl px-4 py-3 flex items-center justify-between border border-gray-600/60">
 								<div>
 									<p class="text-xs text-gray-400 uppercase">Following</p>
-									<p class="font-semibold text-white"><%= meUser.stats ? meUser.stats.followingCount : 0 %></p>
+									<p class="font-semibold text-white"><%= me.stats ? me.stats.followingCount : 0 %></p>
 								</div>
 								<i data-feather="user-plus" class="w-5 h-5 text-purple-200"></i>
 							</div>
@@ -75,24 +69,19 @@
 					</div>
 				</section>
 
-
-				<!-- New Post Box (only owner) -->
-				<% if (isOwner) { %>
-					<%- include('components/newpost', { placeholder: "Share something…" }) %>
-				<% } %>
+				<!-- New Post Box -->
+				<%- include('components/newpost', { placeholder: "Share something…" }) %>
 
 				<!-- Posts Header -->
 				<div class="flex justify-center border-b border-gray-700">
-					<div
-						class="block w-full py-3 text-center border-b-2 -mb-px transition border-purple-400 text-white"
-					>
+					<div class="block w-full py-3 text-center border-b-2 -mb-px transition border-purple-400 text-white">
 						Posts
 					</div>
 				</div>
 
 				<!-- Feed Posts -->
 				<div class="p-4 space-y-4">
-					<% if (typeof feed !== 'undefined' && Array.isArray(feed) && feed.length) { %>
+					<% if (feed && feed.length) { %>
 						<% feed.forEach(function(post){ %>
 							<div data-post-id="<%= post.post_id || post.id %>">
 								<%- include('components/post', {
@@ -105,7 +94,7 @@
 									likes: Number(post.likes ?? 0),
 									primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
 									category: post.category || null,
-									currentUser: typeof currentUser !== 'undefined' ? currentUser : null
+									currentUser: currentUser || null
 								}) %>
 							</div>
 						<% }) %>
@@ -121,4 +110,4 @@
 		</script>
 		<script src="/js/post-sync.js"></script>
 	</body>
-	</html>
+</html>

@@ -11,221 +11,178 @@ import {
   ensureUserRecord,
 } from "../utils/session-user.js";
 
-async function fetchPostsForUser(userRecord, viewerId = null) {
-  const posts = await getUnifiedFeed({
-    authorId: userRecord.user_id,
-    statuses: ['published'],
-    viewerId: viewerId || userRecord.user_id
-  });
-  
-  return posts.map((row) => {
-    const primaryMedia = row.media && row.media.length ? row.media[0] : null;
-    const body = row.body || "";
-
-    return {
-      id: row.post_id,
-      post_id: row.post_id,
-      name: row.author_display_name || userRecord.display_name || userRecord.username,
-      username: row.author_username || userRecord.username,
-      author_display_name: row.author_display_name || userRecord.display_name || userRecord.username,
-      author_username: row.author_username || userRecord.username,
-      title: row.title || "",
-      body,
-      content: body,
-      media: row.media || [],
-      primaryMedia,
-      status: row.status,
-      createdAt: row.created_at,
-      comments: row.comments || 0,
-      likes: row.likes || 0,
-      isFollowing: row.isFollowing || false
-    };
-  });
+// Helper function to get user statistics
+async function getUserStats(userId) {
+  try {
+    const client = await pool.connect();
+    
+    // Get posts count
+    const postsResult = await client.query(
+      'SELECT COUNT(*) as count FROM posts WHERE author_id = $1 AND status = $2',
+      [userId, 'published']
+    );
+    const postsCount = parseInt(postsResult.rows[0]?.count || 0);
+    
+    // Get followers count
+    const followersResult = await client.query(
+      'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
+      [userId]
+    );
+    const followersCount = parseInt(followersResult.rows[0].count);
+    
+    // Get following count
+    const followingResult = await client.query(
+      'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
+      [userId]
+    );
+    const followingCount = parseInt(followingResult.rows[0].count);
+    
+    client.release();
+    
+    return { postsCount, followersCount, followingCount };
+  } catch (error) {
+    console.error("Error getting user stats:", error);
+    return { postsCount: 0, followersCount: 0, followingCount: 0 };
+  }
 }
 
-export async function renderProfilePage(req, res) {
-  let feed = [];
-  let userRecord = null;
-  let profileUser = null;
+// Helper function to check if user is following another user
+async function isFollowing(followerId, followingId) {
+  if (!followerId || !followingId) return false;
+  
+  try {
+    const client = await pool.connect();
+    const result = await client.query(
+      'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',
+      [followerId, followingId]
+    );
+    client.release();
+    return result.rows.length > 0;
+  } catch (error) {
+    console.error("Error checking follow status:", error);
+    return false;
+  }
+}
 
-  // Get the username from URL params, default to current user if not provided
+// Helper function to get user by username
+async function getUserByUsername(username) {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM users WHERE username = $1',
+      [username]
+    );
+    return rows[0] || null;
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    return null;
+  }
+}
+
+// Helper function to format post data
+function formatPost(post, userRecord) {
+  const primaryMedia = post.media && post.media.length ? post.media[0] : null;
+  const body = post.body || "";
+
+  return {
+    id: post.post_id,
+    post_id: post.post_id,
+    name: post.author_display_name || userRecord.display_name || userRecord.username,
+    username: post.author_username || userRecord.username,
+    author_display_name: post.author_display_name || userRecord.display_name || userRecord.username,
+    author_username: post.author_username || userRecord.username,
+    title: post.title || "",
+    body,
+    content: body,
+    media: post.media || [],
+    primaryMedia,
+    status: post.status,
+    createdAt: post.created_at,
+    comments: post.comments || 0,
+    likes: post.likes || 0,
+    isFollowing: post.isFollowing || false
+  };
+}
+
+// Main profile page renderer
+export async function renderProfilePage(req, res) {
   const profileUsername = req.params.username;
   const currentUser = req.user;
-
-  // Debug logging to understand the user object structure
-  console.log('Current user object:', JSON.stringify(currentUser, null, 2));
-
-  if (currentUser?.sub) {
-    let client;
-    try {
-      client = await pool.connect();
-      userRecord = await ensureUserRecord(req.user, { client });
-    } catch (error) {
-      console.error("Error loading user record:", error);
-    } finally {
-      if (client) {
-        client.release();
-      }
-    }
-  } else if (currentUser) {
-    console.error('User object exists but missing sub property');
-  }
-
-  // Function to check if current user is following the profile user
-  async function isFollowing(followerId, followingId) {
-    if (!followerId || !followingId) return false;
+  let client;
+  
+  try {
+    client = await pool.connect();
     
-    try {
-      const client = await pool.connect();
-      const result = await client.query(
-        'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
-        [followerId, followingId]
-      );
-      client.release();
-      return result.rows.length > 0;
-    } catch (error) {
-      console.error("Error checking follow status:", error);
-      return false;
-    }
-  }
-
-  // Function to get user statistics
-  async function getUserStats(userId) {
-    try {
-      const client = await pool.connect();
-      
-      // Get posts count by counting published posts only (for consistency with other profiles)
-      const postsResult = await client.query(
-        'SELECT COUNT(*) as count FROM posts WHERE author_id = $1 AND status = $2',
-        [userId, 'published']
-      );
-      const postsCount = parseInt(postsResult.rows[0]?.count || 0);
-      
-      // Get followers count
-      const followersResult = await client.query(
-        'SELECT COUNT(*) as count FROM follows WHERE following_id = $1',
-        [userId]
-      );
-      const followersCount = parseInt(followersResult.rows[0].count);
-      
-      // Get following count
-      const followingResult = await client.query(
-        'SELECT COUNT(*) as count FROM follows WHERE follower_id = $1',
-        [userId]
-      );
-      const followingCount = parseInt(followingResult.rows[0].count);
-      
-      client.release();
-      
-      return {
-        postsCount,
-        followersCount,
-        followingCount
-      };
-    } catch (error) {
-      console.error("Error getting user stats:", error);
-      return {
-        postsCount: 0,
-        followersCount: 0,
-        followingCount: 0
-      };
-    }
-  }
-
-  // If viewing someone else's profile, get their posts
-  if (profileUsername && profileUsername !== currentUser?.username) {
-    try {
-      const { rows } = await pool.query(
-        'SELECT * FROM users WHERE username = $1',
-        [profileUsername]
-      );
-      profileUser = rows[0];
-      
+    // Get current user record
+    const userRecord = currentUser?.sub 
+      ? await ensureUserRecord(req.user, { client })
+      : null;
+    
+    // Determine which profile to show
+    let profileUser;
+    let isOwnProfile = false;
+    
+    if (profileUsername) {
+      // Viewing someone's profile
+      profileUser = await getUserByUsername(profileUsername);
       if (!profileUser) {
         return res.status(404).send("User not found");
       }
-
-      feed = await getUnifiedFeed({
-        authorId: profileUser.user_id,
-        statuses: ['published'],
-        viewerId: userRecord?.user_id
-      });
-      
-      // Map the posts to ensure consistent format
-      feed = feed.map((row) => {
-        const primaryMedia = row.media && row.media.length ? row.media[0] : null;
-        const body = row.body || "";
-
-        return {
-          id: row.post_id,
-          post_id: row.post_id,
-          name: row.author_display_name || profileUser.display_name || profileUser.username,
-          username: row.author_username || profileUser.username,
-          author_display_name: row.author_display_name || profileUser.display_name || profileUser.username,
-          author_username: row.author_username || profileUser.username,
-          title: row.title || "",
-          body,
-          content: body,
-          media: row.media || [],
-          primaryMedia,
-          status: row.status,
-          createdAt: row.created_at,
-          comments: row.comments || 0,
-          likes: row.likes || 0,
-          isFollowing: row.isFollowing || false
-        };
-      });
-      
-      // Get user statistics and check follow status
-      const userStats = await getUserStats(profileUser.user_id);
-      const isFollowingUser = await isFollowing(userRecord?.user_id, profileUser.user_id);
-      
-      const { me, viewer } = buildViewUser(req, userRecord);
-
-      res.render("user-profile", {
-        me: {
-          name: profileUser.display_name || profileUser.username,
-          username: profileUser.username,
-          email: profileUser.email || "",
-          bio: profileUser.bio || "",
-          avatar_url: profileUser.avatar_url || "",
-          created_at: profileUser.created_at,
-          stats: userStats
-        },
-        currentUser: viewer,
-        activePage: "profile",
-        feed,
-        isFollowing: isFollowingUser
-      });
-      return;
-    } catch (error) {
-      console.error("Error loading profile user:", error);
-      return res.status(500).send("Failed to load profile");
+      isOwnProfile = userRecord && userRecord.username === profileUsername;
+    } else if (userRecord) {
+      // Viewing own profile
+      profileUser = userRecord;
+      isOwnProfile = true;
+    } else {
+      return res.status(401).send("Please log in to view profiles");
     }
+    
+    // Get user's posts
+    const feedData = await getUnifiedFeed({
+      authorId: profileUser.user_id,
+      statuses: ['published'],
+      viewerId: userRecord?.user_id
+    });
+    
+    const feed = feedData.map(post => formatPost(post, profileUser));
+    
+    // Get user statistics
+    const stats = await getUserStats(profileUser.user_id);
+    
+    // Check follow status (only if not viewing own profile)
+    let isFollowingUser = false;
+    if (!isOwnProfile && userRecord) {
+      isFollowingUser = await isFollowing(userRecord.user_id, profileUser.user_id);
+    }
+    
+    // Prepare profile data
+    const profileData = {
+      name: profileUser.display_name || profileUser.username,
+      username: profileUser.username,
+      email: profileUser.email || "",
+      bio: profileUser.bio || "",
+      avatar_url: profileUser.avatar_url || "",
+      created_at: profileUser.created_at,
+      stats
+    };
+    
+    // Determine which template to use
+    const template = isOwnProfile ? "profile" : "user-profile";
+    
+    // Render the appropriate template
+    res.render(template, {
+      me: profileData,
+      currentUser: buildViewUser(req, userRecord).viewer,
+      activePage: "profile",
+      feed,
+      isFollowing: isFollowingUser
+    });
+    
+  } catch (error) {
+    console.error("Error rendering profile page:", error);
+    res.status(500).send("Failed to load profile");
+  } finally {
+    if (client) client.release();
   }
-
-  // If viewing own profile or no username specified, show current user's posts
-  if (userRecord) {
-    feed = await fetchPostsForUser(userRecord, userRecord.user_id);
-  }
-
-  const { me, viewer } = buildViewUser(req, userRecord);
-  
-  // Get user statistics for the profile being viewed
-  const profileUserId = userRecord?.user_id;
-  const userStats = profileUserId ? await getUserStats(profileUserId) : { postsCount: 0, followersCount: 0, followingCount: 0 };
-
-  res.render("profile", {
-    me: {
-      ...me,
-      avatar_url: userRecord?.avatar_url || "",
-      created_at: userRecord?.created_at,
-      stats: userStats
-    },
-    currentUser: viewer,
-    activePage: "profile",
-    feed,
-  });
 }
 
 export function renderProfileEditPage(req, res) {
@@ -254,38 +211,35 @@ export async function updateProfile(req, res) {
   const trimmedBio = safeTrim(bio);
   const trimmedEmail = safeTrim(email);
 
-  // Check if Cognito is available (for development)
-  if (!process.env.COGNITO_USER_POOL_ID || !cognitoClient) {
-    console.log('Cognito not available, simulating profile update for development');
-    
-    // Simulate validation
-    if (trimmedDisplayName) {
-      if (trimmedDisplayName.length > 50) {
-        return res.status(400).json({
-          ok: false,
-          message: "Display name must be 50 characters or less"
-        });
-      }
-    }
-    
-    if (trimmedBio && trimmedBio.length > 160) {
+  // Validation
+  if (trimmedDisplayName && trimmedDisplayName.length > 50) {
+    return res.status(400).json({
+      ok: false,
+      message: "Display name must be 50 characters or less"
+    });
+  }
+  
+  if (trimmedBio && trimmedBio.length > 160) {
+    return res.status(400).json({
+      ok: false,
+      message: "Bio must be 160 characters or less"
+    });
+  }
+  
+  if (trimmedEmail) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
       return res.status(400).json({
         ok: false,
-        message: "Bio must be 160 characters or less"
+        message: "Please enter a valid email address"
       });
     }
-    
-    if (trimmedEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
-        return res.status(400).json({
-          ok: false,
-          message: "Please enter a valid email address"
-        });
-      }
-    }
+  }
 
-    // Persist changes for development mode so other pages stay in sync
+  // Check if Cognito is available
+  if (!process.env.COGNITO_USER_POOL_ID || !cognitoClient) {
+    console.log('Cognito not available, updating local database only');
+    
     try {
       await pool.query(
         `UPDATE users
@@ -297,54 +251,38 @@ export async function updateProfile(req, res) {
         [trimmedDisplayName ?? null, trimmedBio ?? null, trimmedEmail ?? null, username]
       );
       await loadCurrentUser(req, { res, forceReload: true });
+      
+      return res.json({
+        ok: true,
+        message: "Profile updated successfully",
+        data: {
+          displayName: trimmedDisplayName || '',
+          bio: trimmedBio || '',
+          email: trimmedEmail || ''
+        }
+      });
     } catch (error) {
-      console.error("Failed to update development profile record:", error);
+      console.error("Failed to update profile:", error);
+      return res.status(500).json({
+        ok: false,
+        message: "Failed to update profile"
+      });
     }
-
-    // Simulate successful update
-    return res.json({
-      ok: true,
-      message: "Profile updated successfully (development mode)",
-      data: {
-        displayName: trimmedDisplayName || '',
-        bio: trimmedBio || '',
-        email: trimmedEmail || ''
-      }
-    });
   }
 
+  // Update in Cognito
   try {
     const userAttributes = [];
     
-    // Only include fields that have values
     if (trimmedDisplayName) {
-      if (trimmedDisplayName.length > 50) {
-        return res.status(400).json({
-          ok: false,
-          message: "Display name must be 50 characters or less"
-        });
-      }
       userAttributes.push({ Name: "name", Value: trimmedDisplayName });
     }
     
     if (trimmedBio) {
-      if (trimmedBio.length > 160) {
-        return res.status(400).json({
-          ok: false,
-          message: "Bio must be 160 characters or less"
-        });
-      }
       userAttributes.push({ Name: "custom:bio", Value: trimmedBio });
     }
     
     if (trimmedEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmedEmail)) {
-        return res.status(400).json({
-          ok: false,
-          message: "Please enter a valid email address"
-        });
-      }
       userAttributes.push({ Name: "email", Value: trimmedEmail });
     }
 
@@ -363,7 +301,7 @@ export async function updateProfile(req, res) {
 
     await cognitoClient.send(command);
 
-    // อัปเดตข้อมูลผู้ใช้ใน PostgreSQL เพื่อให้หน้าอื่นๆ รับข้อมูลล่าสุดด้วย
+    // Update local database
     await pool.query(
       `UPDATE users
        SET display_name = COALESCE($1, display_name),
@@ -389,7 +327,6 @@ export async function updateProfile(req, res) {
   } catch (error) {
     console.error("Error updating profile:", error);
     
-    // Handle specific AWS Cognito errors
     if (error.name === 'InvalidParameterException') {
       return res.status(400).json({
         ok: false,
@@ -451,61 +388,25 @@ export async function deleteAccount(req, res) {
   try {
     await client.query("BEGIN");
 
-    const tablesToCheck = [
-      "likes",
-      "comments",
-      "group_join_requests",
-      "group_members",
-      "posts",
-      "groups",
-      "reports",
+    // Delete user-related data in correct order
+    const deleteOperations = [
+      "DELETE FROM likes WHERE user_id = $1",
+      "DELETE FROM comments WHERE user_id = $1",
+      "DELETE FROM group_join_requests WHERE user_id = $1",
+      "DELETE FROM group_members WHERE user_id = $1",
+      "DELETE FROM posts WHERE author_id = $1",
+      "DELETE FROM groups WHERE owner_id = $1",
+      `DELETE FROM reports
+       WHERE reporter_id::text = $1
+          OR (report_type = 'user' AND target_id::text = $1)`,
+      "DELETE FROM users WHERE user_id = $1"
     ];
 
-    const { rows: tableRows } = await client.query(
-      `SELECT table_name
-       FROM information_schema.tables
-       WHERE table_schema = 'public'
-         AND table_name = ANY($1::text[])`,
-      [tablesToCheck]
-    );
-
-    const availableTables = new Set(tableRows.map((row) => row.table_name));
-
-    if (availableTables.has("likes")) {
-      await client.query("DELETE FROM likes WHERE user_id = $1", [userId]);
+    for (const query of deleteOperations) {
+      await client.query(query, [userId]);
     }
 
-    if (availableTables.has("comments")) {
-      await client.query("DELETE FROM comments WHERE user_id = $1", [userId]);
-    }
-
-    if (availableTables.has("group_join_requests")) {
-      await client.query("DELETE FROM group_join_requests WHERE user_id = $1", [userId]);
-    }
-
-    if (availableTables.has("group_members")) {
-      await client.query("DELETE FROM group_members WHERE user_id = $1", [userId]);
-    }
-
-    if (availableTables.has("posts")) {
-      await client.query("DELETE FROM posts WHERE author_id = $1", [userId]);
-    }
-
-    if (availableTables.has("groups")) {
-      await client.query("DELETE FROM groups WHERE owner_id = $1", [userId]);
-    }
-
-    if (availableTables.has("reports")) {
-      await client.query(
-        `DELETE FROM reports
-         WHERE reporter_id::text = $1
-            OR (report_type = 'user' AND target_id::text = $1)`,
-        [userId]
-      );
-    }
-
-    await client.query("DELETE FROM users WHERE user_id = $1", [userId]);
-
+    // Delete from Cognito if available
     if (process.env.COGNITO_USER_POOL_ID && cognitoClient) {
       try {
         const command = new AdminDeleteUserCommand({
@@ -520,8 +421,6 @@ export async function deleteAccount(req, res) {
           throw Object.assign(new Error("COGNITO_DELETE_FAILED"), { cause: error });
         }
       }
-    } else {
-      console.log("Cognito not available, skipped remote delete for development");
     }
 
     await client.query("COMMIT");
@@ -545,10 +444,10 @@ export async function deleteAccount(req, res) {
     client.release();
   }
 
+  // Clear cookies and session
   res.clearCookie("access_token");
   res.clearCookie("id_token");
   res.clearCookie("refresh_token");
-
   req.user = null;
   req.currentUser = null;
 
@@ -570,23 +469,16 @@ export async function followUser(req, res) {
   }
   
   try {
-    // Get the user to follow
-    const { rows } = await pool.query(
-      'SELECT user_id FROM users WHERE username = $1',
-      [username]
-    );
+    const targetUser = await getUserByUsername(username);
     
-    if (rows.length === 0) {
+    if (!targetUser) {
       return res.status(404).json({
         ok: false,
         message: "User not found"
       });
     }
     
-    const targetUserId = rows[0].user_id;
-    
-    // Don't allow following yourself
-    if (currentUser.user_id === targetUserId) {
+    if (currentUser.user_id === targetUser.user_id) {
       return res.status(400).json({
         ok: false,
         message: "You cannot follow yourself"
@@ -594,12 +486,9 @@ export async function followUser(req, res) {
     }
     
     // Check if already following
-    const existingFollow = await pool.query(
-      'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
-      [currentUser.user_id, targetUserId]
-    );
+    const existingFollow = await isFollowing(currentUser.user_id, targetUser.user_id);
     
-    if (existingFollow.rows.length > 0) {
+    if (existingFollow) {
       return res.status(400).json({
         ok: false,
         message: "You are already following this user"
@@ -609,7 +498,7 @@ export async function followUser(req, res) {
     // Create follow relationship
     await pool.query(
       'INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)',
-      [currentUser.user_id, targetUserId]
+      [currentUser.user_id, targetUser.user_id]
     );
     
     return res.json({
@@ -638,25 +527,19 @@ export async function unfollowUser(req, res) {
   }
   
   try {
-    // Get the user to unfollow
-    const { rows } = await pool.query(
-      'SELECT user_id FROM users WHERE username = $1',
-      [username]
-    );
+    const targetUser = await getUserByUsername(username);
     
-    if (rows.length === 0) {
+    if (!targetUser) {
       return res.status(404).json({
         ok: false,
         message: "User not found"
       });
     }
     
-    const targetUserId = rows[0].user_id;
-    
     // Remove follow relationship
     const result = await pool.query(
       'DELETE FROM follows WHERE follower_id = $1 AND following_id = $2',
-      [currentUser.user_id, targetUserId]
+      [currentUser.user_id, targetUser.user_id]
     );
     
     if (result.rowCount === 0) {
