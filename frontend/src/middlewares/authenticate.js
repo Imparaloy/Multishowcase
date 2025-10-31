@@ -93,9 +93,11 @@ async function authenticateCognitoJWT(req, res, next) {
   console.log('authenticateCognitoJWT called');
 
   if (isAlbHealthCheck(req)) {
-    req.user  = { username: 'alb-healthcheck', groups: [] };
-    res.locals.user = req.user;
-    return next();
+    console.log('Bypassing auth for ALB health check');
+    if (!res.headersSent) {
+      res.status(200).send('ok');
+    }
+    return;
   }
 
   // Check if verifiers are configured
