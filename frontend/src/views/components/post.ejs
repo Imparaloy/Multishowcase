@@ -537,6 +537,11 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
         if (window.feather && typeof window.feather.replace === 'function') {
           window.feather.replace();
         }
+        
+        // Auto-refresh the page after a short delay to update all follow buttons
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       } else {
         throw new Error(data.message || 'Unknown error occurred');
       }
