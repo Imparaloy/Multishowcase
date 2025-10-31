@@ -19,7 +19,7 @@
         <label class="cursor-pointer flex items-center gap-2">
           <i data-feather="image"></i>
           <span class="text-xs">Add images</span>
-          <input type="file" accept="image/*" class="hidden" multiple data-role="file-input" />
+          <input type="file" accept="image/*,video/*" class="hidden" multiple data-role="file-input" />
         </label>
         <button type="button" data-role="toggle-tags" class="flex items-center gap-2 text-gray-400 hover:text-white focus:outline-none" aria-expanded="false">
           <i data-feather="tag"></i>
@@ -40,78 +40,158 @@
       }
 
       const ta = root.querySelector('[data-role="content"]');
-      const imgInput = root.querySelector('[data-role="file-input"]');
+      const fileInput = root.querySelector('[data-role="file-input"]');
       const previewList = root.querySelector('[data-role="preview-list"]');
       const submitBtn = root.querySelector('[data-role="submit"]');
       const toggleBtn = root.querySelector('[data-role="toggle-tags"]');
       const tagPicker = root.querySelector('[data-role="tag-picker"]');
       const tagGrid = root.querySelector('[data-role="tag-grid"]');
 
-      if (!ta || !imgInput || !previewList || !submitBtn || !toggleBtn || !tagPicker || !tagGrid) {
+      if (!ta || !fileInput || !previewList || !submitBtn || !toggleBtn || !tagPicker || !tagGrid) {
         console.error('newpost component: missing required elements');
         return;
       }
 
-      let selectedFiles = [];
+      const selectedItems = [];
       let selectedCategory = null;
+
+      const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+      const MAX_VIDEO_SIZE = 200 * 1024 * 1024; // 200MB
+      const ALLOWED_IMAGE_TYPES = new Set([
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif'
+      ]);
+      const ALLOWED_VIDEO_TYPES = new Set([
+        'video/mp4',
+        'video/quicktime',
+        'video/webm',
+        'video/x-matroska'
+      ]);
+
+      const formatBytes = (bytes) => {
+        if (!bytes) return '0 B';
+        const units = ['B', 'KB', 'MB', 'GB'];
+        const tier = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        const num = bytes / Math.pow(1024, tier);
+        return `${Number.isFinite(num) ? num.toFixed(num >= 10 || tier === 0 ? 0 : 1) : 0} ${units[tier]}`;
+      };
+
+      const classifyFile = (file) => {
+        if (!file || !file.type) return 'unknown';
+        if (file.type.startsWith('image/')) return 'image';
+        if (file.type.startsWith('video/')) return 'video';
+        return 'unknown';
+      };
+
+      const validateFile = (file) => {
+        if (!file) return 'Unrecognized selection';
+        const kind = classifyFile(file);
+
+        if (kind === 'image') {
+          if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+            return `Unsupported image format (${file.type}) for "${file.name}"`;
+          }
+          if (file.size > MAX_IMAGE_SIZE) {
+            return `Image "${file.name}" exceeds ${formatBytes(MAX_IMAGE_SIZE)}.`;
+          }
+        } else if (kind === 'video') {
+          if (!ALLOWED_VIDEO_TYPES.has(file.type)) {
+            return `Unsupported video format (${file.type}) for "${file.name}"`;
+          }
+          if (file.size > MAX_VIDEO_SIZE) {
+            return `Video "${file.name}" exceeds ${formatBytes(MAX_VIDEO_SIZE)}.`;
+          }
+        } else {
+          return `Unsupported file type (${file.type || 'unknown'}) for "${file.name}"`;
+        }
+
+        if (!file.size) {
+          return `File "${file.name}" appears to be empty.`;
+        }
+
+        return null;
+      };
 
       const syncInputFiles = () => {
         try {
           const dt = new DataTransfer();
-          selectedFiles.forEach(f => dt.items.add(f));
-          imgInput.files = dt.files;
-        } catch (e) {
-          // fallback: do nothing (some older browsers)
+          selectedItems.forEach(item => dt.items.add(item.file));
+          fileInput.files = dt.files;
+        } catch {
+          // Older browsers might not support DataTransfer constructor; safe to ignore.
+        }
+      };
+
+      const revokePreview = (item) => {
+        if (item && item.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+          item.previewUrl = null;
         }
       };
 
       const renderPreviews = () => {
         previewList.innerHTML = '';
-        if (selectedFiles.length === 0) {
+        if (selectedItems.length === 0) {
           previewList.classList.add('hidden');
           return;
         }
         previewList.classList.remove('hidden');
 
-        selectedFiles.forEach((file, idx) => {
-          const reader = new FileReader();
+        selectedItems.forEach((item, idx) => {
+          if (!item.previewUrl) {
+            item.previewUrl = URL.createObjectURL(item.file);
+          }
           const cell = document.createElement('div');
           cell.className = 'relative rounded overflow-hidden bg-gray-50 flex items-center justify-center';
 
           const removeBtn = document.createElement('button');
           removeBtn.type = 'button';
           removeBtn.className = 'absolute top-1 right-1 bg-white/90 hover:bg-white text-gray-700 rounded-full p-1 shadow transition transform hover:scale-105 focus:outline-none';
-          removeBtn.setAttribute('aria-label', 'Remove image');
+          removeBtn.setAttribute('aria-label', 'Remove media');
           removeBtn.dataset.index = idx.toString();
           removeBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 9.293l4.646-4.647a1 1 0 011.414 1.414L11.414 10.707l4.646 4.646a1 1 0 01-1.414 1.414L10 12.121l-4.646 4.646a1 1 0 01-1.414-1.414l4.646-4.646L3.94 6.06A1 1 0 015.354 4.646L10 9.293z" clip-rule="evenodd"/></svg>';
 
-          const img = document.createElement('img');
-          img.className = 'object-cover w-full h-32 transition-transform duration-150';
-          img.alt = 'preview';
+          const mediaEl = document.createElement(item.kind === 'video' ? 'video' : 'img');
+          mediaEl.className = 'object-cover w-full h-32 transition-transform duration-150';
+          mediaEl.src = item.previewUrl;
+          if (item.kind === 'video') {
+            mediaEl.controls = true;
+            mediaEl.loop = true;
+            mediaEl.muted = true;
+            mediaEl.setAttribute('playsinline', '');
+          } else {
+            mediaEl.alt = 'preview';
+          }
 
           removeBtn.addEventListener('click', (ev) => {
             ev.preventDefault();
-            img.classList.add('opacity-0', 'scale-95');
+            mediaEl.classList.add('opacity-0', 'scale-95');
             cell.classList.add('pointer-events-none');
             setTimeout(() => {
               const index = Number(ev.currentTarget.dataset.index);
               if (!Number.isNaN(index)) {
-                selectedFiles.splice(index, 1);
+                const [removed] = selectedItems.splice(index, 1);
+                revokePreview(removed);
+                syncInputFiles();
+                renderPreviews();
               }
-              syncInputFiles();
-              renderPreviews();
             }, 180);
           });
 
-          reader.onload = function(ev) {
-            img.src = ev.target.result;
-          };
-          reader.readAsDataURL(file);
-
           cell.appendChild(removeBtn);
-          cell.appendChild(img);
+          cell.appendChild(mediaEl);
           previewList.appendChild(cell);
         });
+      };
+
+      const resetSelectedItems = () => {
+        while (selectedItems.length > 0) {
+          revokePreview(selectedItems.pop());
+        }
+        syncInputFiles();
+        renderPreviews();
       };
 
       const resizeTextarea = () => {
@@ -124,16 +204,19 @@
 
       submitBtn.addEventListener('click', async () => {
         const content = ta.value.trim();
-        if (!content) {
-          alert('Please enter some content for your post');
+        if (!content && selectedItems.length === 0) {
+          alert('Please enter some content or attach media before posting.');
           return;
         }
 
         const formData = new FormData();
-        formData.append('content', content);
+        if (content) {
+          formData.append('content', content);
+        }
 
-        selectedFiles.forEach((file) => {
-          formData.append('images', file);
+        selectedItems.forEach(({ file, kind }) => {
+          const field = kind === 'video' ? 'media' : 'images';
+          formData.append(field, file);
         });
 
         if (selectedCategory) {
@@ -155,24 +238,15 @@
           }
 
           ta.value = '';
-          selectedFiles = [];
-          renderPreviews();
+          resetSelectedItems();
           selectedCategory = null;
           renderTags();
           updateToggleState();
 
-          // Clear form and let SSE handle the update
-          ta.value = '';
-          selectedFiles = [];
-          renderPreviews();
-          selectedCategory = null;
-          renderTags();
-          updateToggleState();
-          
           // Show success message
           submitBtn.innerHTML = '<span class="flex items-center"><i data-feather="check-circle" class="w-4 h-4 mr-2 text-green-400"></i>โพสต์สำเร็จ!</span>';
           feather.replace();
-          
+
           // Reset button after 2 seconds
           setTimeout(() => {
             submitBtn.innerHTML = 'Post';
@@ -187,21 +261,43 @@
         }
       });
 
-      imgInput.addEventListener('change', (e) => {
+      fileInput.addEventListener('change', (e) => {
         const files = Array.from(e.target.files || []);
-        let hasNew = false;
-        files.forEach(f => {
-          const exists = selectedFiles.some(sf => sf.name === f.name && sf.size === f.size && sf.lastModified === f.lastModified);
-          if (!exists) {
-            selectedFiles.push(f);
-            hasNew = true;
+        if (files.length === 0) return;
+
+        const rejected = [];
+
+        files.forEach((file) => {
+          const error = validateFile(file);
+          if (error) {
+            rejected.push(error);
+            return;
           }
+
+          const kind = classifyFile(file);
+          const exists = selectedItems.some(
+            (item) =>
+              item.file.name === file.name &&
+              item.file.size === file.size &&
+              item.file.lastModified === file.lastModified &&
+              item.kind === kind
+          );
+          if (exists) return;
+
+          selectedItems.push({
+            file,
+            kind,
+            previewUrl: URL.createObjectURL(file)
+          });
         });
-        if (hasNew) {
-          syncInputFiles();
-          renderPreviews();
+
+        syncInputFiles();
+        renderPreviews();
+        fileInput.value = '';
+
+        if (rejected.length > 0) {
+          alert(rejected.join('\n'));
         }
-        imgInput.value = '';
       });
 
       const tags = [
@@ -276,6 +372,10 @@
         window.feather.replace();
         updateToggleState();
       }
+
+      window.addEventListener('beforeunload', () => {
+        selectedItems.forEach(revokePreview);
+      });
     })();
   </script>
 </div>
