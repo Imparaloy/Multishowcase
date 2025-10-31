@@ -80,6 +80,7 @@
                   comments: Number(post.comments ?? 0),
                   likes: Number(post.likes ?? 0),
                   primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
+                  category: post.category || null,
                   currentUser: typeof currentUser !== 'undefined' ? currentUser : null,
                   isFollowing: post.isFollowing || false
                 }) %>
