@@ -104,7 +104,8 @@ export const getUnifiedFeed = async (options = {}) => {
     authorId = null,
     groupId = null,
     statuses = ['published'],
-    viewerId = null
+    viewerId = null,
+    excludeGroupPosts = false // New option to exclude group posts from main feed
   } = options;
 
   // Function to check if viewer is following the author
@@ -211,6 +212,9 @@ export const getUnifiedFeed = async (options = {}) => {
     values.push(groupId);
     const idx = values.length;
     conditions.push(`p.group_id = $${idx}`);
+  } else if (excludeGroupPosts) {
+    // Exclude group posts from main feed
+    conditions.push(`p.group_id IS NULL`);
   }
 
   values.push(limit);

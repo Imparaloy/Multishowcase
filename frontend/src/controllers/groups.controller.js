@@ -3,6 +3,7 @@ import TAG_LIST from '../data/tags.js';
 import { getUnifiedFeed } from './feed.controller.js';
 import { createPost as createStandalonePost } from './posts.controller.js';
 import { loadCurrentUser } from '../utils/session-user.js';
+import { updateConnectionGroupContext } from './sse.controller.js';
 
 const BASE_GROUP_SELECT = `
   SELECT
@@ -277,6 +278,11 @@ export async function renderGroupDetailsPage(req, res) {
       statuses,
       viewerId: canSeeUnpublished ? currentUser.user_id : null
     });
+    
+    // Update SSE connection context for group-specific updates
+    if (currentUser && req) {
+      updateConnectionGroupContext(req, id);
+    }
 
     const pendingRequests = isOwner ? await fetchPendingJoinRequests(id) : [];
     const joinRequestStatus = latestJoinRequest?.status || null;

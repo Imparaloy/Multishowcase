@@ -380,6 +380,13 @@ export const createPost = async (req, res) => {
         });
       }
       
+      // Get the group_id for the post
+      const { rows: groupRows } = await client.query(
+        'SELECT group_id FROM posts WHERE post_id = $1',
+        [postId]
+      );
+      const groupId = groupRows.length > 0 ? groupRows[0].group_id : null;
+      
       // Broadcast the new post to all connected clients
       broadcastNewPost({
         post_id: newPost.post_id,
@@ -391,7 +398,8 @@ export const createPost = async (req, res) => {
         author_display_name: newPost.author_display_name,
         media: mediaUrls,
         published_at: newPost.published_at,
-        created_at: newPost.created_at
+        created_at: newPost.created_at,
+        group_id: groupId // Include group_id in broadcast
       });
     }
 
@@ -486,8 +494,15 @@ export const deletePost = async (req, res) => {
     
     await client.query('COMMIT');
     
+    // Get group_id for post being deleted
+    const { rows: deletedPostRows } = await client.query(
+      'SELECT group_id FROM posts WHERE post_id = $1',
+      [postId]
+    );
+    const deletedGroupId = deletedPostRows.length > 0 ? deletedPostRows[0].group_id : null;
+    
     // Broadcast the post deletion to all connected clients
-    broadcastPostDeletion(postId, postAuthorId);
+    broadcastPostDeletion(postId, postAuthorId, deletedGroupId);
     
     res.status(200).json({
       success: true,

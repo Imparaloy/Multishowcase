@@ -1,8 +1,8 @@
 // sse.controller.js - Server-Sent Events for real-time post synchronization
 import { authenticateCognitoJWT } from '../middlewares/authenticate.js';
 
-// Store active SSE connections
-const activeConnections = new Set();
+// Store active SSE connections with context
+const activeConnections = new Map(); // Changed to Map to store connection context
 
 /**
  * SSE endpoint for real-time post updates
@@ -20,8 +20,13 @@ export const postUpdatesSSE = async (req, res) => {
   // Send initial connection message
   res.write('event: connected\ndata: {"type":"connected","message":"SSE connection established"}\n\n');
 
-  // Add connection to active connections
-  activeConnections.add(res);
+  // Add connection to active connections with context
+  const connectionId = Date.now() + Math.random(); // Simple unique ID
+  activeConnections.set(connectionId, {
+    response: res,
+    userId: req.user?.user_id || null,
+    currentGroupId: null // Will be set when viewing a group
+  });
 
   // Send periodic heartbeat to keep connection alive
   const heartbeatInterval = setInterval(() => {
@@ -31,12 +36,24 @@ export const postUpdatesSSE = async (req, res) => {
   // Clean up on client disconnect
   req.on('close', () => {
     clearInterval(heartbeatInterval);
-    activeConnections.delete(res);
+    // Find and remove connection by response object
+    for (const [id, conn] of activeConnections.entries()) {
+      if (conn.response === res) {
+        activeConnections.delete(id);
+        break;
+      }
+    }
   });
 
   req.on('aborted', () => {
     clearInterval(heartbeatInterval);
-    activeConnections.delete(res);
+    // Find and remove connection by response object
+    for (const [id, conn] of activeConnections.entries()) {
+      if (conn.response === res) {
+        activeConnections.delete(id);
+        break;
+      }
+    }
   });
 };
 
@@ -53,13 +70,23 @@ export const broadcastNewPost = (post) => {
 
   const eventData = `event: new_post\ndata: ${JSON.stringify(message)}\n\n`;
 
-  activeConnections.forEach(connection => {
+  activeConnections.forEach((connection, connectionId) => {
     try {
-      connection.write(eventData);
+      // If post has a group_id, only send to connections viewing that group
+      if (post.group_id) {
+        // Only send to users who are members of the group or viewing the group
+        // For now, we'll only send to connections explicitly viewing the group
+        if (connection.currentGroupId === post.group_id) {
+          connection.response.write(eventData);
+        }
+      } else {
+        // Send non-group posts to all connections
+        connection.response.write(eventData);
+      }
     } catch (error) {
       console.error('Error broadcasting to SSE connection:', error);
       // Remove dead connection
-      activeConnections.delete(connection);
+      activeConnections.delete(connectionId);
     }
   });
 };
@@ -69,23 +96,32 @@ export const broadcastNewPost = (post) => {
  * @param {string} postId - The ID of the deleted post
  * @param {string} authorId - The ID of the post author (optional)
  */
-export const broadcastPostDeletion = (postId, authorId = null) => {
+export const broadcastPostDeletion = (postId, authorId = null, groupId = null) => {
   const message = {
     type: 'post_deleted',
     postId: postId,
     authorId: authorId,
+    groupId: groupId,
     timestamp: new Date().toISOString()
   };
 
   const eventData = `event: post_deleted\ndata: ${JSON.stringify(message)}\n\n`;
 
-  activeConnections.forEach(connection => {
+  activeConnections.forEach((connection, connectionId) => {
     try {
-      connection.write(eventData);
+      // If post has a group_id, only send to connections viewing that group
+      if (groupId) {
+        if (connection.currentGroupId === groupId) {
+          connection.response.write(eventData);
+        }
+      } else {
+        // Send non-group post deletions to all connections
+        connection.response.write(eventData);
+      }
     } catch (error) {
       console.error('Error broadcasting to SSE connection:', error);
       // Remove dead connection
-      activeConnections.delete(connection);
+      activeConnections.delete(connectionId);
     }
   });
 };
@@ -128,4 +164,21 @@ export const broadcastCommentEvent = (data) => {
  */
 export const getActiveConnectionCount = () => {
   return activeConnections.size;
+};
+
+/**
+ * Update the current group context for a connection
+ * @param {Object} req - The request object
+ * @param {string} groupId - The group ID being viewed
+ */
+export const updateConnectionGroupContext = (req, groupId) => {
+  // Find the connection for this request
+  for (const [id, conn] of activeConnections.entries()) {
+    // This is a simple way to match the connection - in a real implementation,
+    // you might want to store the connection ID in the session or use a more robust method
+    if (conn.userId === req.user?.user_id) {
+      conn.currentGroupId = groupId;
+      break;
+    }
+  }
 };

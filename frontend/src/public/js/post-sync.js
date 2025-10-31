@@ -35,6 +35,15 @@ class PostSync {
       const data = JSON.parse(event.data);
       console.log('PostSync: New post received', data);
       
+      // Check if this is a group post and if we're viewing that group
+      if (data.post.group_id) {
+        const currentGroupId = this.getCurrentGroupId();
+        if (currentGroupId !== data.post.group_id) {
+          console.log(`PostSync: Ignoring group post ${data.post.post_id} for group ${data.post.group_id} (currently viewing group ${currentGroupId})`);
+          return;
+        }
+      }
+      
       // Update post count if we're on a profile page
       this.updatePostCount(data.post.author_id, 1);
     });
@@ -61,6 +70,18 @@ class PostSync {
     this.eventSource.addEventListener('post_deleted', (event) => {
       const data = JSON.parse(event.data);
       console.log('PostSync: Post deletion received', data);
+      
+      // Check if this is a group post and if we're viewing that group
+      if (data.groupId) {
+        const currentGroupId = this.getCurrentGroupId();
+        if (currentGroupId !== data.groupId) {
+          console.log(`PostSync: Ignoring group post deletion ${data.postId} for group ${data.groupId} (currently viewing group ${currentGroupId})`);
+          return;
+        }
+      }
+      
+      // Remove post element from DOM
+      this.removePostElement(data.postId);
       
       // Remove the post element from DOM
       this.removePostElement(data.postId);
@@ -182,6 +203,24 @@ class PostSync {
         commentCountElement.textContent = comments;
       }
     });
+  }
+  /**
+   * Get current group ID from URL
+   * @returns {string|null} The current group ID or null if not on a group page
+   */
+  getCurrentGroupId() {
+    const pathname = window.location.pathname;
+    
+    // Check if we're on a group details page
+    if (pathname.startsWith('/groups/')) {
+      const parts = pathname.split('/');
+      // URL format: /groups/{groupId}
+      if (parts.length >= 3) {
+        return parts[2];
+      }
+    }
+    
+    return null;
   }
 
   /**

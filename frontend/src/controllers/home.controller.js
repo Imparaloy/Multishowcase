@@ -16,7 +16,8 @@ export const getForYouPosts = async (req, res) => {
       limit,
       offset,
       viewerId,
-      statuses: viewerId ? ['published', 'unpublish'] : ['published']
+      statuses: viewerId ? ['published', 'unpublish'] : ['published'],
+      excludeGroupPosts: true // Exclude group posts from main feed
     });
     
     if (feed.length) {
@@ -53,7 +54,8 @@ export const getFollowingPosts = async (req, res) => {
       limit,
       offset,
       viewerId,
-      statuses: viewerId ? ['published', 'unpublish'] : ['published']
+      statuses: viewerId ? ['published', 'unpublish'] : ['published'],
+      excludeGroupPosts: true // Exclude group posts from following feed
     });
     
     if (feed.length) {
