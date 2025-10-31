@@ -77,6 +77,9 @@
 									</span>
 								</div>
 							</div>
+							<%
+								const joinStatus = (typeof joinRequestStatus !== 'undefined' && joinRequestStatus) ? joinRequestStatus : null;
+							%>
 							<div class="flex items-center gap-2">
 								<% if (isOwner) { %>
 									<button id="editGroupBtn" class="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-sm font-semibold flex items-center gap-2">
@@ -93,10 +96,27 @@
 										ออกจากกลุ่ม
 									</button>
 								<% } else { %>
-									<button id="joinGroupBtn" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold flex items-center gap-2">
-										<i data-feather="user-plus" class="w-4 h-4"></i>
-										ขอเข้าร่วมกลุ่ม
-									</button>
+									<div class="flex flex-col items-end gap-1">
+										<button
+											id="joinGroupBtn"
+											class="px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2 transition <%= joinStatus === 'pending' ? 'bg-purple-600/70 text-gray-200 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700' %>"
+											data-status="<%= joinStatus || 'none' %>"
+											<%= joinStatus === 'pending' ? 'disabled' : '' %>
+										>
+											<% if (joinStatus === 'pending') { %>
+												<i data-feather="clock" class="w-4 h-4"></i>
+												กำลังรออนุมัติ
+											<% } else { %>
+												<i data-feather="user-plus" class="w-4 h-4"></i>
+												ขอเข้าร่วมกลุ่ม
+											<% } %>
+										</button>
+										<% if (joinStatus === 'pending') { %>
+											<span class="text-xs text-gray-400">คำขอของคุณอยู่ระหว่างรอเจ้าของกลุ่มอนุมัติ</span>
+										<% } else if (joinStatus === 'rejected') { %>
+											<span class="text-xs text-red-300">คำขอครั้งก่อนถูกปฏิเสธ คุณสามารถส่งคำขอใหม่ได้</span>
+										<% } %>
+									</div>
 								<% } %>
 							</div>
 						</div>
@@ -294,10 +314,10 @@
 													</div>
 												</div>
 												<div class="flex items-center gap-2">
-													<button class="approve-request-btn px-3 py-1 rounded-full bg-green-600 hover:bg-green-700 text-xs" data-user="<%= request.username %>">
+													<button class="approve-request-btn px-3 py-1 rounded-full bg-green-600 hover:bg-green-700 text-xs" data-request-id="<%= request.requestId %>" data-user="<%= request.username %>">
 														อนุมัติ
 													</button>
-													<button class="reject-request-btn px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-xs" data-user="<%= request.username %>">
+													<button class="reject-request-btn px-3 py-1 rounded-full bg-red-600 hover:bg-red-700 text-xs" data-request-id="<%= request.requestId %>" data-user="<%= request.username %>">
 														ปฏิเสธ
 													</button>
 												</div>
@@ -345,7 +365,18 @@
 			const joinGroupBtn = document.getElementById('joinGroupBtn');
 			if (joinGroupBtn) {
 				joinGroupBtn.addEventListener('click', async () => {
+					const currentStatus = joinGroupBtn.dataset.status;
+					if (currentStatus === 'pending') {
+						alert('คำขอของคุณกำลังรอการอนุมัติจากเจ้าของกลุ่ม');
+						return;
+					}
+
 					try {
+						joinGroupBtn.disabled = true;
+						joinGroupBtn.classList.add('opacity-75');
+						const originalContent = joinGroupBtn.innerHTML;
+						joinGroupBtn.innerHTML = '<span class="flex items-center gap-2"><div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>กำลังส่งคำขอ...</span>';
+
 						const res = await fetch(`/groups/${groupId}/join`, {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' }
@@ -355,9 +386,17 @@
 							location.reload();
 						} else {
 							alert(data.message || 'ไม่สามารถขอเข้าร่วมกลุ่มได้');
+							joinGroupBtn.disabled = false;
+							joinGroupBtn.classList.remove('opacity-75');
+							joinGroupBtn.innerHTML = originalContent;
+							feather.replace();
 						}
 					} catch (err) {
 						alert('เกิดข้อผิดพลาดในการขอเข้าร่วมกลุ่ม');
+						joinGroupBtn.disabled = false;
+						joinGroupBtn.classList.remove('opacity-75');
+						joinGroupBtn.innerHTML = '<i data-feather="user-plus" class="w-4 h-4"></i>ขอเข้าร่วมกลุ่ม';
+						feather.replace();
 					}
 				});
 			}
@@ -509,9 +548,9 @@
 			// Approve request
 			document.querySelectorAll('.approve-request-btn').forEach(btn => {
 				btn.addEventListener('click', async () => {
-					const username = btn.dataset.user;
+					const requestId = btn.dataset.requestId;
 					try {
-						const res = await fetch(`/groups/${groupId}/requests/${username}/approve`, {
+						const res = await fetch(`/groups/${groupId}/requests/${requestId}/approve`, {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' }
 						});
@@ -530,9 +569,9 @@
 			// Reject request
 			document.querySelectorAll('.reject-request-btn').forEach(btn => {
 				btn.addEventListener('click', async () => {
-					const username = btn.dataset.user;
+					const requestId = btn.dataset.requestId;
 					try {
-						const res = await fetch(`/groups/${groupId}/requests/${username}/reject`, {
+						const res = await fetch(`/groups/${groupId}/requests/${requestId}/reject`, {
 							method: 'POST',
 							headers: { 'Content-Type': 'application/json' }
 						});

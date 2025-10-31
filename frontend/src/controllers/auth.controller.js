@@ -1,10 +1,7 @@
 // controllers/auth.controller.js
 import {
   SignUpCommand,
-  InitiateAuthCommand,
-  ListUsersCommand,
-  AdminConfirmSignUpCommand,
-  AdminUpdateUserAttributesCommand,
+  InitiateAuthCommand
 } from "@aws-sdk/client-cognito-identity-provider";
 import { cognitoClient, secretHash } from "../services/cognito.service.js";
 import axios from "axios";
@@ -12,34 +9,114 @@ import { stringify } from "querystring";
 import pool from "../config/dbconn.js";
 import { confirmSignUp } from '../services/cognito.service.js';
 
+function sanitizeDisplayName(body, fallback) {
+  const raw = typeof body.display_name === 'string' ? body.display_name : body.name;
+  if (typeof raw !== 'string') return fallback;
+  const trimmed = raw.trim();
+  return trimmed.length ? trimmed : fallback;
+}
+
+function renderSignupView(res, { statusCode = 200, error = null, message = null, formData = {} } = {}) {
+  return res.status(statusCode).render('signup', {
+    title: 'Sign Up',
+    error,
+    message,
+    formData
+  });
+}
+
 /* ---------- Views ---------- */
 export function renderSignup(req, res) {
-  res.render("signup", { title: "Sign Up" });
+  return renderSignupView(res);
 }
 export function renderLogin(req, res) {
-  res.render("login", { title: "Log In" });
+  const queryMessage = typeof req.query.message === 'string' && req.query.message.trim().length
+    ? req.query.message.trim()
+    : undefined;
+  const defaultMessage = req.query.confirmed
+    ? 'บัญชีของคุณได้รับการยืนยันแล้ว กรุณาเข้าสู่ระบบเพื่อเริ่มใช้งาน'
+    : undefined;
+  const message = defaultMessage || queryMessage;
+  const username = typeof req.query.username === 'string' ? req.query.username : '';
+
+  res.render("login", {
+    title: "Log In",
+    message,
+    formData: { username }
+  });
 }
 export function renderConfirm(req, res) {
-  return res.render('confirm', { title: 'Confirm Sign Up' });
+  const username = typeof req.query.username === 'string' ? req.query.username : '';
+  const justSignedUp = req.query.sent === '1' || req.query.sent === 'true';
+  const message = justSignedUp ? 'เราได้ส่งรหัสยืนยันไปที่อีเมลของคุณแล้ว กรุณากรอกรหัสเพื่อยืนยันบัญชี' : undefined;
+
+  return res.render('confirm', {
+    title: 'Confirm Sign Up',
+    username,
+    message
+  });
 }
 
 export async function confirm(req, res) {
   const { username, code } = req.body || {};
   if (!username || !code) {
-    return res.status(400).render('confirm', { title: 'Confirm Sign Up', error: 'กรุณากรอก username และ confirmation code' });
+    return res.status(400).render('confirm', {
+      title: 'Confirm Sign Up',
+      error: 'กรุณากรอก username และ confirmation code',
+      username: username || ''
+    });
   }
   try {
     await confirmSignUp({ username, code });
-    return res.render('login', { title: 'Log In', message: 'Account confirmed. You can log in now.' });
+    await pool.query(
+      `UPDATE users
+       SET status = 'active', updated_at = NOW()
+       WHERE username = $1`,
+      [username]
+    );
+
+    return res.redirect(`/login?confirmed=1&username=${encodeURIComponent(username)}`);
   } catch (err) {
     console.error('Confirm sign up failed:', err);
-    return res.status(400).render('confirm', { title: 'Confirm Sign Up', error: err?.message || 'Confirm failed' });
+    return res.status(400).render('confirm', {
+      title: 'Confirm Sign Up',
+      error: err?.message || 'Confirm failed',
+      username
+    });
   }
 }
 
 /* ---------- Helpers ---------- */
 export async function signup(req, res) {
-  const { username, password, email, name: display_name } = req.body;
+  const rawUsername = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+  const rawEmail = typeof req.body.email === 'string' ? req.body.email.trim() : '';
+  const password = req.body.password;
+  const rawDisplayInput = typeof req.body.display_name === 'string'
+    ? req.body.display_name
+    : (typeof req.body.name === 'string' ? req.body.name : '');
+  const display_name = sanitizeDisplayName(req.body, rawUsername);
+
+  const formData = {
+    display_name: rawDisplayInput,
+    username: rawUsername,
+    email: rawEmail
+  };
+
+  if (!rawUsername) {
+    return renderSignupView(res, {
+      statusCode: 400,
+      error: 'Username is required.',
+      formData
+    });
+  }
+
+  if (!rawEmail) {
+    return renderSignupView(res, {
+      statusCode: 400,
+      error: 'Email is required.',
+      formData
+    });
+  }
 
   // Validate password strength
   if (
@@ -48,65 +125,80 @@ export async function signup(req, res) {
     /^\s|\s$/.test(password) ||
     /\s/.test(password)
   ) {
-    return res.status(400).json({ ok: false, message: "Password must not contain spaces and cannot be empty." });
+    return renderSignupView(res, {
+      statusCode: 400,
+      error: 'Password must not contain spaces and cannot be empty.',
+      formData
+    });
   }
 
   try {
     // 1) ตรวจสอบว่าอีเมลซ้ำใน PostgreSQL หรือไม่
-    const emailCheck = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (emailCheck.rows.length > 0) {
-      return res.status(400).json({ ok: false, message: "Email already exists in database" });
+    const emailCheck = await pool.query("SELECT username FROM users WHERE email = $1", [rawEmail]);
+    if (emailCheck.rows.length > 0 && emailCheck.rows[0].username !== rawUsername) {
+      return renderSignupView(res, {
+        statusCode: 400,
+        error: 'Email already exists in database',
+        formData
+      });
     }
 
     // 2) สมัครใน Cognito
     const signUp = new SignUpCommand({
       ClientId: process.env.COGNITO_CLIENT_ID,
-      Username: username,
+      Username: rawUsername,
       Password: password,
-      UserAttributes: [{ Name: "email", Value: email }],
-      SecretHash: secretHash(username),
+      UserAttributes: [{ Name: "email", Value: rawEmail }],
+      SecretHash: secretHash(rawUsername),
     });
     const cognitoResponse = await cognitoClient.send(signUp);
 
     // ดึง userSub จาก Cognito Response
     const cognitoSub = cognitoResponse.UserSub;
 
-    // 3) ยืนยันบัญชีใน Cognito
-    await cognitoClient.send(
-      new AdminConfirmSignUpCommand({
-        UserPoolId: process.env.COGNITO_USER_POOL_ID,
-        Username: username,
-      })
-    );
-
-    // 4) บันทึกข้อมูลลงใน PostgreSQL
+    // 3) บันทึกข้อมูลลงใน PostgreSQL โดยตั้งสถานะรอยืนยัน
     const query = `
       INSERT INTO users (cognito_sub, username, email, display_name, role, status)
       VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING user_id, username, email, display_name, role, status, created_at;
+      ON CONFLICT (username) DO UPDATE
+        SET email = EXCLUDED.email,
+            display_name = EXCLUDED.display_name,
+            status = EXCLUDED.status,
+            updated_at = NOW()
+      RETURNING user_id;
     `;
     const values = [
-      cognitoSub, // เพิ่ม cognitoSub ที่ได้จาก Cognito
-      username,
-      email,
-      display_name || username, // ถ้าไม่มี display_name ให้ใช้ username
-      "user", // ค่า role เริ่มต้น
-      "active", // ค่า status เริ่มต้น
+      cognitoSub,
+      rawUsername,
+      rawEmail,
+      display_name || rawUsername,
+      'user',
+      'pending_confirmation',
     ];
 
-    const result = await pool.query(query, values);
+    await pool.query(query, values);
 
-    // 5) ส่ง response กลับไปยัง client
-    return res.status(201).json({
-      ok: true,
-      message: "Sign up successful. Your account is confirmed. You can log in now.",
-      user: result.rows[0],
-    });
+    // 4) พาผู้ใช้ไปหน้ากรอกรหัสยืนยัน
+    return res.redirect(`/confirm?username=${encodeURIComponent(rawUsername)}&sent=1`);
   } catch (err) {
     console.error("Error during sign up:", err);
-    return res.status(500).json({
-      ok: false,
-      message: err?.message || "Internal Server Error",
+    const fallback = err?.message || 'Internal Server Error';
+    let message = fallback;
+
+    if (err?.name === 'UsernameExistsException') {
+      message = 'Username already exists. If you already signed up, please confirm your account using the code sent to your email.';
+    } else if (err?.name === 'InvalidPasswordException') {
+      message = 'Password does not meet the complexity requirements.';
+    } else if (err?.name === 'InvalidParameterException') {
+      message = err.message || 'Invalid input.';
+    }
+
+    const statusCode = message === fallback ? 500 : 400;
+
+    return renderSignupView(res, {
+      statusCode,
+      error: message,
+      formData
     });
   }
 }

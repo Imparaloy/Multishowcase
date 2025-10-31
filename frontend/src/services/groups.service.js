@@ -43,16 +43,62 @@ export async function deleteGroup(group_id, owner_id) {
 
 // เข้าร่วมกลุ่ม
 export async function joinGroup(group_id, user_id) {
-  const check = await pool.query(
-    'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
+  const membership = await pool.query(
+    'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
     [group_id, user_id]
   );
-  if (check.rowCount > 0) return { error: 'คุณเป็นสมาชิกอยู่แล้ว' };
-  await pool.query(
-    'INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)',
+
+  if (membership.rowCount > 0) {
+    return { ok: true, status: 'member', message: 'คุณเป็นสมาชิกอยู่แล้ว' };
+  }
+
+  const { rows } = await pool.query(
+    `SELECT request_id, status
+     FROM group_join_requests
+     WHERE group_id = $1 AND user_id = $2`,
     [group_id, user_id]
   );
-  return { ok: true };
+
+  const existing = rows[0] || null;
+
+  if (existing) {
+    if (existing.status === 'pending') {
+      return { ok: true, status: 'pending', message: 'คุณได้ส่งคำขอเข้าร่วมแล้ว' };
+    }
+
+    if (existing.status === 'approved') {
+      await pool.query(
+        `INSERT INTO group_members (group_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT (group_id, user_id) DO NOTHING`,
+        [group_id, user_id]
+      );
+      return { ok: true, status: 'member', message: 'คุณเป็นสมาชิกอยู่แล้ว' };
+    }
+
+    await pool.query(
+      `UPDATE group_join_requests
+       SET status = 'pending', created_at = now(), responded_at = NULL
+       WHERE request_id = $1`,
+      [existing.request_id]
+    );
+
+    return { ok: true, status: 'pending', message: 'ส่งคำขอเข้าร่วมอีกครั้งแล้ว' };
+  }
+
+  const inserted = await pool.query(
+    `INSERT INTO group_join_requests (group_id, user_id, status)
+     VALUES ($1, $2, 'pending')
+     RETURNING request_id`,
+    [group_id, user_id]
+  );
+
+  return {
+    ok: true,
+    status: 'pending',
+    requestId: inserted.rows[0]?.request_id || null,
+    message: 'ส่งคำขอเข้าร่วมกลุ่มแล้ว'
+  };
 }
 
 // ออกจากกลุ่ม

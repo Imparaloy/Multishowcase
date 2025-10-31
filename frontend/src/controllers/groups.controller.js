@@ -97,6 +97,47 @@ function formatGroupRow(row) {
   };
 }
 
+async function fetchPendingJoinRequests(groupId) {
+  const { rows } = await pool.query(
+    `SELECT
+       r.request_id,
+       r.user_id,
+       r.status,
+       r.created_at,
+       u.username,
+       COALESCE(u.display_name, u.username) AS display_name
+     FROM group_join_requests r
+     JOIN users u ON u.user_id = r.user_id
+     WHERE r.group_id = $1 AND r.status = 'pending'
+     ORDER BY r.created_at ASC`,
+    [groupId]
+  );
+
+  return rows.map((row) => ({
+    requestId: row.request_id,
+    userId: row.user_id,
+    username: row.username,
+    displayName: row.display_name,
+    status: row.status,
+    requestedAt: row.created_at
+  }));
+}
+
+async function findLatestJoinRequest(groupId, userId) {
+  if (!groupId || !userId) return null;
+
+  const { rows } = await pool.query(
+    `SELECT request_id, status, created_at, responded_at
+     FROM group_join_requests
+     WHERE group_id = $1 AND user_id = $2
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [groupId, userId]
+  );
+
+  return rows[0] || null;
+}
+
 async function fetchGroups({ groupId } = {}) {
   const values = [];
   let whereClause = '';
@@ -216,6 +257,9 @@ export async function renderGroupDetailsPage(req, res) {
     const isOwner = currentUser ? group.ownerId === currentUser.user_id : false;
     const members = Array.isArray(group.members) ? group.members : [];
     const isMember = currentUser ? members.some((m) => m.user_id === currentUser.user_id) : false;
+    const latestJoinRequest = !isOwner && !isMember && currentUser
+      ? await findLatestJoinRequest(id, currentUser.user_id)
+      : null;
 
     const canSeeUnpublished = Boolean(currentUser);
     const statuses = canSeeUnpublished ? ['published', 'unpublish'] : ['published'];
@@ -225,7 +269,8 @@ export async function renderGroupDetailsPage(req, res) {
       viewerId: canSeeUnpublished ? currentUser.user_id : null
     });
 
-    const pendingRequests = [];
+    const pendingRequests = isOwner ? await fetchPendingJoinRequests(id) : [];
+    const joinRequestStatus = latestJoinRequest?.status || null;
     const tagMap = Object.fromEntries(TAG_LIST.map(t => [t.slug, t.label]));
     return res.render('group-details', {
       title: group.name,
@@ -234,6 +279,7 @@ export async function renderGroupDetailsPage(req, res) {
       isOwner,
       isMember,
       pendingRequests,
+      joinRequestStatus,
       posts,
       members,
       exploreTags: TAG_LIST,
@@ -252,10 +298,62 @@ export async function joinGroupHandler(req, res) {
   const currentUser = await loadCurrentUser(req, { res });
     const user_id = currentUser?.user_id;
     if (!user_id) return res.status(400).json({ ok: false, message: 'ไม่พบข้อมูลผู้ใช้' });
-    const check = await pool.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
-    if (check.rowCount > 0) return res.status(400).json({ ok: false, message: 'คุณเป็นสมาชิกอยู่แล้ว' });
-    await pool.query('INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)', [id, user_id]);
-    return res.json({ ok: true, message: 'เข้าร่วมกลุ่มสำเร็จ' });
+
+    const { rows: groupRows } = await pool.query('SELECT owner_id FROM groups WHERE group_id = $1', [id]);
+    const group = groupRows[0];
+    if (!group) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+    }
+
+    if (group.owner_id === user_id) {
+      return res.status(400).json({ ok: false, message: 'คุณเป็นเจ้าของกลุ่มอยู่แล้ว' });
+    }
+
+    const membershipCheck = await pool.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, user_id]);
+    if (membershipCheck.rowCount > 0) {
+      return res.json({ ok: true, message: 'คุณเป็นสมาชิกของกลุ่มนี้อยู่แล้ว', status: 'member' });
+    }
+
+    const { rows: requestRows } = await pool.query(
+      `SELECT request_id, status
+       FROM group_join_requests
+       WHERE group_id = $1 AND user_id = $2`,
+      [id, user_id]
+    );
+
+    const existingRequest = requestRows[0] || null;
+
+    if (existingRequest) {
+      if (existingRequest.status === 'pending') {
+        return res.json({ ok: true, message: 'คุณได้ส่งคำขอเข้าร่วมแล้ว กรุณารอการอนุมัติ', status: 'pending' });
+      }
+
+      if (existingRequest.status === 'approved') {
+        await pool.query(
+          `INSERT INTO group_members (group_id, user_id)
+           VALUES ($1, $2)
+           ON CONFLICT (group_id, user_id) DO NOTHING`,
+          [id, user_id]
+        );
+        return res.json({ ok: true, message: 'คุณเป็นสมาชิกของกลุ่มนี้แล้ว', status: 'member' });
+      }
+
+      await pool.query(
+        `UPDATE group_join_requests
+         SET status = 'pending', created_at = now(), responded_at = NULL
+         WHERE request_id = $1`,
+        [existingRequest.request_id]
+      );
+
+      return res.json({ ok: true, message: 'ส่งคำขอเข้าร่วมกลุ่มอีกครั้งเรียบร้อย', status: 'pending' });
+    }
+
+    await pool.query(
+      'INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1, $2, $3)',
+      [id, user_id, 'pending']
+    );
+
+    return res.json({ ok: true, message: 'ส่งคำขอเข้าร่วมกลุ่มแล้ว กรุณารอการอนุมัติ', status: 'pending' });
   } catch (e) {
     console.error('Failed to join group:', e);
     return res.status(500).json({ ok: false, message: 'ไม่สามารถเข้าร่วมกลุ่มได้' });
@@ -286,6 +384,147 @@ export async function leaveGroupHandler(req, res) {
   } catch (e) {
     console.error('Failed to leave group:', e);
     return res.status(500).json({ ok: false, message: 'ไม่สามารถออกจากกลุ่มได้' });
+  }
+}
+
+async function assertGroupOwner(groupId, userId) {
+  const { rows } = await pool.query('SELECT owner_id FROM groups WHERE group_id = $1', [groupId]);
+  const group = rows[0];
+  if (!group) {
+    return { ok: false, reason: 'not_found' };
+  }
+  if (group.owner_id !== userId) {
+    return { ok: false, reason: 'forbidden' };
+  }
+  return { ok: true, ownerId: group.owner_id };
+}
+
+export async function approveJoinRequestHandler(req, res) {
+  const { id, requestId } = req.params;
+
+  try {
+  const currentUser = await loadCurrentUser(req, { res });
+    const user_id = currentUser?.user_id;
+
+    if (!user_id) {
+      return res.status(401).json({ ok: false, message: 'กรุณาเข้าสู่ระบบ' });
+    }
+
+    const ownership = await assertGroupOwner(id, user_id);
+    if (!ownership.ok) {
+      if (ownership.reason === 'not_found') {
+        return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+      }
+      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์อนุมัติคำขอของกลุ่มนี้' });
+    }
+
+    await pool.query('BEGIN');
+
+    const { rows } = await pool.query(
+      `SELECT request_id, user_id, status
+       FROM group_join_requests
+       WHERE request_id = $1 AND group_id = $2
+       FOR UPDATE`,
+      [requestId, id]
+    );
+
+    const request = rows[0];
+    if (!request) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'ไม่พบคำขอ' });
+    }
+
+    if (request.status !== 'pending') {
+      await pool.query('ROLLBACK');
+      return res.status(400).json({ ok: false, message: 'คำขอถูกดำเนินการไปแล้ว' });
+    }
+
+    await pool.query(
+      `UPDATE group_join_requests
+       SET status = 'approved', responded_at = now()
+       WHERE request_id = $1`,
+      [requestId]
+    );
+
+    await pool.query(
+      `INSERT INTO group_members (group_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT (group_id, user_id) DO NOTHING`,
+      [id, request.user_id]
+    );
+
+    await pool.query('COMMIT');
+
+    return res.json({ ok: true, message: 'อนุมัติคำขอเรียบร้อย' });
+  } catch (e) {
+    console.error('Failed to approve join request:', e);
+    try {
+      await pool.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Rollback failed:', rollbackErr);
+    }
+    return res.status(500).json({ ok: false, message: 'ไม่สามารถอนุมัติคำขอได้' });
+  }
+}
+
+export async function rejectJoinRequestHandler(req, res) {
+  const { id, requestId } = req.params;
+
+  try {
+  const currentUser = await loadCurrentUser(req, { res });
+    const user_id = currentUser?.user_id;
+
+    if (!user_id) {
+      return res.status(401).json({ ok: false, message: 'กรุณาเข้าสู่ระบบ' });
+    }
+
+    const ownership = await assertGroupOwner(id, user_id);
+    if (!ownership.ok) {
+      if (ownership.reason === 'not_found') {
+        return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+      }
+      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์ปฏิเสธคำขอของกลุ่มนี้' });
+    }
+
+    await pool.query('BEGIN');
+
+    const { rows } = await pool.query(
+      `SELECT request_id, user_id, status
+       FROM group_join_requests
+       WHERE request_id = $1 AND group_id = $2
+       FOR UPDATE`,
+      [requestId, id]
+    );
+
+    const request = rows[0];
+    if (!request) {
+      await pool.query('ROLLBACK');
+      return res.status(404).json({ ok: false, message: 'ไม่พบคำขอ' });
+    }
+
+    if (request.status !== 'pending') {
+      await pool.query('ROLLBACK');
+      return res.status(400).json({ ok: false, message: 'คำขอถูกดำเนินการไปแล้ว' });
+    }
+
+    await pool.query(
+      `UPDATE group_join_requests
+       SET status = 'rejected', responded_at = now()
+       WHERE request_id = $1`,
+      [requestId]
+    );
+
+    await pool.query('COMMIT');
+
+    return res.json({ ok: true, message: 'ปฏิเสธคำขอเรียบร้อย' });
+  } catch (e) {
+    console.error('Failed to reject join request:', e);
+    try {
+      await pool.query('ROLLBACK');
+    } catch (rollbackErr) {
+      console.error('Rollback failed:', rollbackErr);
+    }
+    return res.status(500).json({ ok: false, message: 'ไม่สามารถปฏิเสธคำขอได้' });
   }
 }
 

@@ -18,7 +18,8 @@
         <form method="post" action="/confirm" class="space-y-4">
           <div>
             <label class="block text-sm text-gray-300">Username</label>
-            <input name="username" required class="w-full mt-1 p-2 rounded bg-[#0f1730] border border-gray-700 text-white" />
+            <input name="username" required class="w-full mt-1 p-2 rounded bg-[#0f1730] border border-gray-700 text-white"
+                   value="<%= typeof username !== 'undefined' ? username : '' %>" />
           </div>
           <div>
             <label class="block text-sm text-gray-300">Confirmation Code</label>

@@ -6,7 +6,9 @@ import {
   joinGroupHandler,
   leaveGroupHandler,
   deleteGroupHandler,
-  createGroupPost
+  createGroupPost,
+  approveJoinRequestHandler,
+  rejectJoinRequestHandler
 } from '../controllers/groups.controller.js';
 import { authenticateCognitoJWT, requireAuth, attachUserToLocals } from '../middlewares/authenticate.js';
 
@@ -24,6 +26,10 @@ router.post('/groups', authenticateCognitoJWT, requireAuth, createGroup);
 
 // ขอเข้าร่วมกลุ่ม
 router.post('/groups/:id/join', authenticateCognitoJWT, requireAuth, joinGroupHandler);
+
+// อนุมัติ/ปฏิเสธคำขอเข้าร่วม (เฉพาะเจ้าของ)
+router.post('/groups/:id/requests/:requestId/approve', authenticateCognitoJWT, requireAuth, approveJoinRequestHandler);
+router.post('/groups/:id/requests/:requestId/reject', authenticateCognitoJWT, requireAuth, rejectJoinRequestHandler);
 
 // ออกจากกลุ่ม
 router.post('/groups/:id/leave', authenticateCognitoJWT, requireAuth, leaveGroupHandler);

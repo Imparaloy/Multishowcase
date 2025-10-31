@@ -60,14 +60,22 @@
         </h2>
         <p class="text-slate-500 mt-2">Meet the good taste today.</p>
 
-        <form class="mt-10 space-y-4" id="loginForm" method="post" action="/login">
+        <% const formValues = typeof formData === 'object' && formData !== null ? formData : {}; %>
+        <% const hasMessage = typeof message !== 'undefined' && !!message; %>
+        <% if (hasMessage) { %>
+          <div class="mt-6 text-sm text-green-600"><%= message %></div>
+        <% } %>
+
+        <% const loginFormSpacing = hasMessage ? 'mt-6' : 'mt-10'; %>
+        <form class="<%= loginFormSpacing %> space-y-4" id="loginForm" method="post" action="/login">
 
           <!-- Email -->
           <div>
             <label for="username" class="block text-sm text-slate-600 mb-1">Username</label>
             <input id="username" name="username" type="username"
                    class="w-full rounded-md bg-slate-100/70 border border-slate-200 focus:border-slate-400 focus:ring-0 p-3"
-                   placeholder="Type your username">
+         placeholder="Type your username"
+         value="<%= formValues.username || '' %>">
           </div>
 
           <!-- Password -->

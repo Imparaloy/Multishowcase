@@ -7,6 +7,7 @@ CREATE TYPE report_status   AS ENUM ('pending','dismissed','action_taken');
 CREATE TYPE post_status     AS ENUM ('published','unpublish');
 CREATE TYPE media_type      AS ENUM ('image','video','link');
 CREATE TYPE post_category   AS ENUM ('2D art','3D model','Graphic Design','Animation','Game','UX/UI design');
+CREATE TYPE group_join_status AS ENUM ('pending','approved','rejected');
 
 -- 2) ตารางหลัก: users
 CREATE TABLE IF NOT EXISTS users (
@@ -38,6 +39,17 @@ CREATE TABLE IF NOT EXISTS group_members (
   user_id    UUID NOT NULL REFERENCES users(user_id)   ON DELETE CASCADE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (group_id, user_id)
+);
+
+-- 4.1) group_join_requests
+CREATE TABLE IF NOT EXISTS group_join_requests (
+  request_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  group_id     UUID NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+  user_id      UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  status       group_join_status NOT NULL DEFAULT 'pending',
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  responded_at TIMESTAMPTZ,
+  UNIQUE (group_id, user_id)
 );
 
 -- 5) posts
