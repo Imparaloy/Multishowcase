@@ -393,6 +393,19 @@ export const createPost = async (req, res) => {
       });
     }
 
+    // If the post is published, increment the user's post count
+    if (normalizedStatus === 'published') {
+      try {
+        await client.query(
+          'UPDATE users SET posts_count = COALESCE(posts_count, 0) + 1 WHERE user_id = $1',
+          [authorId]
+        );
+      } catch (error) {
+        console.error('Error updating post count:', error);
+        // Don't fail the request if post count update fails
+      }
+    }
+
     return res.status(201).json({
       success: true,
       postId,
@@ -469,10 +482,23 @@ export const deletePost = async (req, res) => {
     await client.query('DELETE FROM post_media WHERE post_id = $1', [postId]);
     await client.query('DELETE FROM posts WHERE post_id = $1', [postId]);
     
+    // If the deleted post was published, decrement the user's post count
+    if (postResult.rows[0].status === 'published') {
+      try {
+        await client.query(
+          'UPDATE users SET posts_count = GREATEST(COALESCE(posts_count, 0) - 1, 0) WHERE user_id = $1',
+          [postAuthorId]
+        );
+      } catch (error) {
+        console.error('Error updating post count after deletion:', error);
+        // Don't fail request if post count update fails
+      }
+    }
+    
     await client.query('COMMIT');
     
     // Broadcast the post deletion to all connected clients
-    broadcastPostDeletion(postId);
+    broadcastPostDeletion(postId, postAuthorId);
     
     res.status(200).json({
       success: true,

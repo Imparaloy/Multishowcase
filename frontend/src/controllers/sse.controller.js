@@ -67,11 +67,13 @@ export const broadcastNewPost = (post) => {
 /**
  * Broadcast post deletion to all connected clients
  * @param {string} postId - The ID of the deleted post
+ * @param {string} authorId - The ID of the post author (optional)
  */
-export const broadcastPostDeletion = (postId) => {
+export const broadcastPostDeletion = (postId, authorId = null) => {
   const message = {
     type: 'post_deleted',
     postId: postId,
+    authorId: authorId,
     timestamp: new Date().toISOString()
   };
 

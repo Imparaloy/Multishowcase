@@ -16,6 +16,7 @@ async function initializeDatabase() {
         display_name VARCHAR(255),
         bio TEXT,
         avatar_url VARCHAR(500),
+        posts_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -170,6 +171,31 @@ async function initializeDatabase() {
         UNIQUE(follower_id, following_id)
       )
     `);
+    
+    // Check and add missing columns to users table before creating indexes
+    const usersColumns = [
+      { name: 'posts_count', type: 'INTEGER DEFAULT 0' }
+    ];
+    
+    for (const column of usersColumns) {
+      try {
+        const result = await client.query(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = '${column.name}'
+        `);
+        
+        if (result.rows.length === 0) {
+          console.log(`Adding missing ${column.name} column to users table...`);
+          await client.query(`
+            ALTER TABLE users
+            ADD COLUMN ${column.name} ${column.type}
+          `);
+        }
+      } catch (err) {
+        console.error(`Error checking/adding ${column.name} column:`, err);
+      }
+    }
     
     // Create indexes for users table
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_cognito_sub ON users(cognito_sub)');
