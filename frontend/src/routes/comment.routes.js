@@ -1,5 +1,7 @@
 import express from 'express';
 import pool from '../config/dbconn.js';
+import { createComment, deleteComment } from '../controllers/comments.controller.js';
+import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate.js';
 
 const router = express.Router();
 
@@ -98,5 +100,11 @@ router.get('/comment', async (req, res) => {
     res.status(500).send('Failed to load post');
   }
 });
+
+// POST route for creating a new comment
+router.post('/api/comments', authenticateCognitoJWT, requireAuth, createComment);
+
+// DELETE route for deleting a comment
+router.delete('/api/comments/:id', authenticateCognitoJWT, requireAuth, deleteComment);
 
 export default router;

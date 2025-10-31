@@ -38,8 +38,20 @@
         <!-- New Comment Box -->
         <div class="flex items-center px-4 py-3 border-b border-gray-700">
           <div class="w-10 h-10 bg-gray-500 rounded-full mr-3"></div>
-          <input type="text" class="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-400" placeholder="Post your reply" />
-          <button class="ml-3 px-4 py-1 rounded-full bg-gray-700 text-white font-semibold">Post</button>
+          <input
+            type="text"
+            id="comment-input"
+            class="flex-1 bg-transparent border-none outline-none text-white placeholder-gray-400"
+            placeholder="Post your reply"
+            onkeypress="handleCommentKeyPress(event)"
+          />
+          <button
+            id="comment-submit-btn"
+            class="ml-3 px-4 py-1 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-colors"
+            onclick="submitComment()"
+          >
+            Post
+          </button>
         </div>
 
         <!-- Comments Feed -->
@@ -67,6 +79,206 @@
     </div>
     <script>
       feather.replace();
+      
+      // Get the post ID from the URL or from the post element
+      const urlParams = new URLSearchParams(window.location.search);
+      const postId = urlParams.get('id') || document.querySelector('[data-post-id]')?.getAttribute('data-post-id');
+      
+      /**
+       * Handle key press in comment input
+       * @param {Event} event - The keyboard event
+       */
+      function handleCommentKeyPress(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          submitComment();
+        }
+      }
+      
+      /**
+       * Submit a new comment
+       */
+      function submitComment() {
+        const commentInput = document.getElementById('comment-input');
+        const submitButton = document.getElementById('comment-submit-btn');
+        const content = commentInput.value.trim();
+        
+        if (!content) {
+          showNotification('Please enter a comment', 'error');
+          return;
+        }
+        
+        if (!postId) {
+          showNotification('Unable to determine post ID', 'error');
+          return;
+        }
+        
+        // Show loading state
+        const originalText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = 'Posting...';
+        commentInput.disabled = true;
+        
+        // Send comment request
+        fetch('/api/comments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            post_id: postId,
+            content: content
+          })
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.success) {
+            // Clear the input
+            commentInput.value = '';
+            
+            // Add the new comment to the comments feed
+            addCommentToFeed(data.comment);
+            
+            // Show success notification
+            showNotification('Comment posted successfully', 'success');
+          } else {
+            throw new Error(data.error || 'Failed to post comment');
+          }
+        })
+        .catch(error => {
+          console.error('Error posting comment:', error);
+          showNotification(`Failed to post comment: ${error.message}`, 'error');
+        })
+        .finally(() => {
+          // Restore button state
+          submitButton.disabled = false;
+          submitButton.textContent = originalText;
+          commentInput.disabled = false;
+          commentInput.focus();
+        });
+      }
+      
+      /**
+       * Add a new comment to the comments feed
+       * @param {Object} comment - The comment object to add
+       */
+      function addCommentToFeed(comment) {
+        const commentsFeed = document.querySelector('.space-y-4');
+        const noCommentsMessage = commentsFeed.querySelector('.text-gray-400');
+        
+        // Remove "No comments yet" message if it exists
+        if (noCommentsMessage) {
+          noCommentsMessage.remove();
+        }
+        
+        // Create comment element
+        const commentElement = document.createElement('div');
+        commentElement.setAttribute('data-post-id', comment.id);
+        commentElement.className = 'opacity-0 transition-opacity duration-300';
+        
+        // Set the inner HTML using the same post component template
+        commentElement.innerHTML = `
+          <div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg">
+            <!-- Post Header -->
+            <header class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-gray-500 rounded-full flex-shrink-0"></div>
+                <div>
+                  <h3 class="font-bold text-white">
+                    <a href="/profile/${comment.username}" class="hover:text-purple-400 transition-colors">${comment.name}</a>
+                  </h3>
+                  <p class="text-gray-400 text-sm">
+                    <a href="/profile/${comment.username}" class="hover:text-purple-400 transition-colors">@${comment.username}</a>
+                  </p>
+                </div>
+              </div>
+            </header>
+            
+            <!-- Post Content -->
+            <main class="text-sm leading-relaxed text-gray-200">
+              <p class="whitespace-pre-line mb-3">${comment.content}</p>
+            </main>
+            
+            <!-- Post Actions -->
+            <footer class="flex justify-start mt-4 text-gray-400 text-sm gap-8">
+              <button
+                class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group"
+                aria-label="View comments"
+              >
+                <i data-feather="message-circle" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                <span>${comment.comments || 0}</span>
+              </button>
+              
+              <button
+                class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group"
+                aria-label="Like post"
+              >
+                <i data-feather="heart" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
+                <span>${comment.likes || 0}</span>
+              </button>
+            </footer>
+          </div>
+        `;
+        
+        // Add to the top of the comments feed
+        commentsFeed.insertBefore(commentElement, commentsFeed.firstChild);
+        
+        // Re-initialize feather icons for the new comment
+        if (window.feather && typeof window.feather.replace === 'function') {
+          window.feather.replace();
+        }
+        
+        // Fade in the new comment
+        setTimeout(() => {
+          commentElement.classList.remove('opacity-0');
+          commentElement.classList.add('opacity-100');
+        }, 10);
+      }
+      
+      /**
+       * Show notification message
+       * @param {string} message - The message to display
+       * @param {string} type - The type of notification (success, error, info)
+       */
+      function showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
+        
+        // Set color based on type
+        const colors = {
+          success: 'bg-green-600 text-white',
+          error: 'bg-red-600 text-white',
+          info: 'bg-blue-600 text-white'
+        };
+        
+        notification.className += ` ${colors[type] || colors.info}`;
+        notification.textContent = message;
+        
+        // Add to DOM
+        document.body.appendChild(notification);
+        
+        // Animate in
+        setTimeout(() => {
+          notification.classList.remove('translate-x-full');
+          notification.classList.add('translate-x-0');
+        }, 10);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+          notification.classList.add('translate-x-full');
+          setTimeout(() => {
+            if (notification.parentNode) {
+              notification.parentNode.removeChild(notification);
+            }
+          }, 300);
+        }, 3000);
+      }
     </script>
   </body>
 </html>

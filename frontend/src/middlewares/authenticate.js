@@ -24,19 +24,8 @@ if (userPoolId && clientId) {
     tokenUse: 'id',
   });
 } else {
-  console.warn('Cognito environment variables not set. Authentication will be bypassed for development.');
+  console.error('Cognito environment variables not set. Authentication is required.');
 }
-
-const devMockUser = {
-  sub: 'e99f09a7-dd88-49d5-b1c8-1daf80c2d7b2',
-  username: 'Polor_inwza',
-  email: 'polor@example.com',
-  groups: ['admin'],
-  payload: {
-    name: 'Polor',
-    'custom:bio': 'This is a test bio for development',
-  },
-};
 
 function extractToken(req) {
   // Prefer ID token for richer profile claims (name, email, custom attributes)
@@ -102,12 +91,16 @@ async function verifyEither(token) {
 
 async function authenticateCognitoJWT(req, res, next) {
   console.log('authenticateCognitoJWT called');
-  // In development, return mock user when verifiers are not configured
+  
+  // Check if verifiers are configured
   if (!accessVerifier || !idVerifier) {
-    console.log('Verifiers not configured, using mock user');
-    req.user = devMockUser;
-    await loadCurrentUser(req, { res });
-    return next();
+    console.error('Authentication verifiers not configured');
+    // Redirect to login for page requests, 401 JSON for API requests
+    if (wantsHTML(req)) {
+      const nextUrl = encodeURIComponent(req.originalUrl || '/');
+      return res.redirect(302, `/login?next=${nextUrl}`);
+    }
+    return res.status(401).json({ message: 'Authentication not configured' });
   }
 
   try {
@@ -165,11 +158,9 @@ function requireRole(role) {
 async function attachUserToLocals(req, res, next) {
   res.locals.user = null;
 
+  // Check if verifiers are configured
   if (!accessVerifier || !idVerifier) {
-    if (process.env.NODE_ENV !== 'production') {
-      req.user = devMockUser;
-      await loadCurrentUser(req, { res });
-    }
+    console.error('Authentication verifiers not configured');
     return next();
   }
 
