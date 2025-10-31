@@ -41,7 +41,7 @@ async function initializeDatabase() {
         author_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
         title VARCHAR(500),
         body TEXT,
-        category VARCHAR(100) DEFAULT '2D art',
+        category VARCHAR(100),
         status VARCHAR(50) DEFAULT 'published' CHECK (status IN ('published', 'unpublish')),
         published_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -184,7 +184,7 @@ async function initializeDatabase() {
       { name: 'author_id', type: 'UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE' },
       { name: 'status', type: "VARCHAR(50) DEFAULT 'published' CHECK (status IN ('published', 'unpublish'))" },
       { name: 'published_at', type: 'TIMESTAMP' },
-      { name: 'category', type: "VARCHAR(100) DEFAULT '2D art'" },
+      { name: 'category', type: "VARCHAR(100)" },
       { name: 'group_id', type: 'UUID REFERENCES groups(group_id) ON DELETE CASCADE' },
       { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ];

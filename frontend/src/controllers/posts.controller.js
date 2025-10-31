@@ -241,8 +241,9 @@ export const createPost = async (req, res) => {
       [];
     arrayTags.forEach(pushCandidate);
 
-    const categorySlug = categoryCandidates.find((slug) => categoryMap[slug]) || '2d-art';
-    const categoryEnum = categoryMap[categorySlug] || '2D art';
+    // Only set a category if the user actually selected one
+    const categorySlug = categoryCandidates.find((slug) => categoryMap[slug]);
+    const categoryEnum = categorySlug ? categoryMap[categorySlug] : null;
 
     const uuidRegex =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -288,7 +289,7 @@ export const createPost = async (req, res) => {
     const postResult = await client.query(
       `
       INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
-      VALUES ($1, $2, $3, $4::post_status, $5::timestamp, $6::post_category, $7)
+      VALUES ($1, $2, $3, $4::post_status, $5::timestamp, $6, $7)
       RETURNING post_id
       `,
       [authorId, title, content, normalizedStatus, publishedAt, categoryEnum, groupId]
