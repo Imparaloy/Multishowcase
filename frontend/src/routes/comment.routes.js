@@ -5,11 +5,23 @@ import { authenticateCognitoJWT, requireAuth } from '../middlewares/authenticate
 
 const router = express.Router();
 
+function isUuidV4(value = '') {
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(
+    value
+  );
+}
+
 router.get('/comment', async (req, res) => {
   try {
-    const id = Number.parseInt(req.query.id, 10);
+    const rawId = typeof req.query.id === 'string' ? req.query.id.trim() : null;
+    const id = rawId && rawId.length > 0 ? rawId : null;
+
+    if (id && !isUuidV4(id)) {
+      return res.status(400).send('Invalid post id');
+    }
+
     // Fetch the requested published post (or the latest published one)
-    const postQuery = id && !Number.isNaN(id)
+    const postQuery = id
       ? {
           text: `
             SELECT p.post_id, p.title, p.body, p.category, p.created_at, p.published_at,
