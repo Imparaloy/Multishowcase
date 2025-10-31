@@ -1,7 +1,9 @@
 // controllers/auth.controller.js
 import {
   SignUpCommand,
-  InitiateAuthCommand
+  InitiateAuthCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { cognitoClient, secretHash } from "../services/cognito.service.js";
 import axios from "axios";
@@ -57,6 +59,36 @@ export function renderConfirm(req, res) {
   });
 }
 
+export function renderForgotPassword(req, res) {
+  const username = typeof req.query.username === 'string' ? req.query.username : '';
+  const message = typeof req.query.message === 'string' ? req.query.message : null;
+  const error = typeof req.query.error === 'string' ? req.query.error : null;
+
+  return res.render('forgot-password', {
+    title: 'Forgot Password',
+    message,
+    error,
+    formData: { username }
+  });
+}
+
+export function renderForgotPasswordConfirm(req, res) {
+  const username = typeof req.query.username === 'string' ? req.query.username : '';
+  const justSent = req.query.sent === '1' || req.query.sent === 'true';
+  const messageParam = typeof req.query.message === 'string' ? req.query.message : null;
+  const message = justSent
+    ? 'เราได้ส่งรหัสรีเซ็ตรหัสผ่านไปที่อีเมลของคุณแล้ว'
+    : messageParam;
+  const error = typeof req.query.error === 'string' ? req.query.error : null;
+
+  return res.render('forgot-password-confirm', {
+    title: 'Reset Password',
+    username,
+    message,
+    error
+  });
+}
+
 export async function confirm(req, res) {
   const { username, code } = req.body || {};
   if (!username || !code) {
@@ -82,6 +114,93 @@ export async function confirm(req, res) {
       title: 'Confirm Sign Up',
       error: err?.message || 'Confirm failed',
       username
+    });
+  }
+}
+
+export async function requestPasswordReset(req, res) {
+  const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+
+  if (!username) {
+    return res.status(400).render('forgot-password', {
+      title: 'Forgot Password',
+      error: 'กรุณากรอก username',
+      formData: { username: '' }
+    });
+  }
+
+  try {
+    const command = new ForgotPasswordCommand({
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      Username: username,
+      SecretHash: secretHash(username)
+    });
+
+    await cognitoClient.send(command);
+
+    return res.redirect(`/forgot-password/confirm?username=${encodeURIComponent(username)}&sent=1`);
+  } catch (err) {
+    console.error('Forgot password initiation failed:', err);
+    const friendlyMessage = err?.message ?? 'ไม่สามารถส่งรหัสรีเซ็ตได้ กรุณาลองใหม่อีกครั้ง';
+    return res.status(400).render('forgot-password', {
+      title: 'Forgot Password',
+      error: friendlyMessage,
+      formData: { username }
+    });
+  }
+}
+
+export async function confirmPasswordReset(req, res) {
+  const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+  const code = typeof req.body.code === 'string' ? req.body.code.trim() : '';
+  const password = typeof req.body.password === 'string' ? req.body.password : '';
+
+  if (!username || !code || !password) {
+    return res.status(400).render('forgot-password-confirm', {
+      title: 'Reset Password',
+      username,
+      error: 'กรุณากรอกข้อมูลให้ครบถ้วน',
+      message: null
+    });
+  }
+
+  if (password.length < 8) {
+    return res.status(400).render('forgot-password-confirm', {
+      title: 'Reset Password',
+      username,
+      error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร',
+      message: null
+    });
+  }
+
+  try {
+    const command = new ConfirmForgotPasswordCommand({
+      ClientId: process.env.COGNITO_CLIENT_ID,
+      Username: username,
+      ConfirmationCode: code,
+      Password: password,
+      SecretHash: secretHash(username)
+    });
+
+    await cognitoClient.send(command);
+
+    await pool.query(
+      `UPDATE users
+       SET updated_at = NOW(), status = 'active'
+       WHERE username = $1`,
+      [username]
+    );
+
+    const successMessage = encodeURIComponent('รีเซ็ตรหัสผ่านเรียบร้อย กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่');
+    return res.redirect(`/login?username=${encodeURIComponent(username)}&message=${successMessage}`);
+  } catch (err) {
+    console.error('Confirm password reset failed:', err);
+    const friendlyMessage = err?.message ?? 'ไม่สามารถรีเซ็ตรหัสผ่านได้ กรุณาตรวจสอบรหัสหรือรหัสผ่านใหม่';
+    return res.status(400).render('forgot-password-confirm', {
+      title: 'Reset Password',
+      username,
+      error: friendlyMessage,
+      message: null
     });
   }
 }
