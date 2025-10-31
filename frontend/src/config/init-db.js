@@ -6,6 +6,23 @@ async function initializeDatabase() {
   try {
     console.log('Initializing database tables...');
     
+    // Create enum types first
+    await client.query(`
+      DO $$ BEGIN
+        CREATE TYPE post_status AS ENUM ('published', 'unpublish');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `);
+    
+    await client.query(`
+      DO $$ BEGIN
+        CREATE TYPE post_category AS ENUM ('2D art', '3D model', 'Graphic Design', 'Animation', 'Game', 'UX/UI design');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+    `);
+    
     // Create users table first (no dependencies)
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -41,8 +58,8 @@ async function initializeDatabase() {
         author_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
         title VARCHAR(500),
         body TEXT,
-        category VARCHAR(100),
-        status VARCHAR(50) DEFAULT 'published' CHECK (status IN ('published', 'unpublish')),
+        category post_category,
+        status post_status DEFAULT 'published',
         published_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -182,9 +199,9 @@ async function initializeDatabase() {
     // Check and add missing columns to posts table before creating indexes
     const postsColumns = [
       { name: 'author_id', type: 'UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE' },
-      { name: 'status', type: "VARCHAR(50) DEFAULT 'published' CHECK (status IN ('published', 'unpublish'))" },
+      { name: 'status', type: 'post_status DEFAULT \'published\'' },
       { name: 'published_at', type: 'TIMESTAMP' },
-      { name: 'category', type: "VARCHAR(100)" },
+      { name: 'category', type: 'post_category' },
       { name: 'group_id', type: 'UUID REFERENCES groups(group_id) ON DELETE CASCADE' },
       { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
     ];
@@ -207,6 +224,53 @@ async function initializeDatabase() {
       } catch (err) {
         console.error(`Error checking/adding ${column.name} column:`, err);
       }
+    }
+    
+    // Special handling for category column to ensure it allows NULL values
+    try {
+      const categoryResult = await client.query(`
+        SELECT is_nullable
+        FROM information_schema.columns
+        WHERE table_name = 'posts' AND column_name = 'category'
+      `);
+      
+      if (categoryResult.rows.length > 0 && categoryResult.rows[0].is_nullable === 'NO') {
+        console.log('Modifying category column to allow NULL values...');
+        await client.query(`
+          ALTER TABLE posts
+          ALTER COLUMN category DROP NOT NULL
+        `);
+      }
+    } catch (err) {
+      console.error('Error modifying category column to allow NULL:', err);
+    }
+    
+    // Special handling for existing category column to change type to enum if needed
+    try {
+      const categoryTypeResult = await client.query(`
+        SELECT data_type
+        FROM information_schema.columns
+        WHERE table_name = 'posts' AND column_name = 'category'
+      `);
+      
+      if (categoryTypeResult.rows.length > 0 && categoryTypeResult.rows[0].data_type !== 'USER-DEFINED') {
+        console.log('Modifying category column type to post_category enum...');
+        await client.query(`
+          ALTER TABLE posts
+          ALTER COLUMN category TYPE post_category USING
+          CASE
+            WHEN category = '2D art' THEN '2D art'::post_category
+            WHEN category = '3D model' THEN '3D model'::post_category
+            WHEN category = 'Graphic Design' THEN 'Graphic Design'::post_category
+            WHEN category = 'Animation' THEN 'Animation'::post_category
+            WHEN category = 'Game' THEN 'Game'::post_category
+            WHEN category = 'UX/UI design' THEN 'UX/UI design'::post_category
+            ELSE NULL
+          END
+        `);
+      }
+    } catch (err) {
+      console.error('Error modifying category column type to enum:', err);
     }
     
     // Create indexes for posts table
