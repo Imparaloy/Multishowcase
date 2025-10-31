@@ -42,7 +42,8 @@ async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset, viewerId 
     category: tagSlug === 'all' ? null : tagSlug,
     searchTerm,
     viewerId,
-    statuses: viewerId ? ['published', 'unpublish'] : ['published']
+    statuses: viewerId ? ['published', 'unpublish'] : ['published'],
+    excludeGroupPosts: true // Exclude group posts from explore feed
   });
 }
 
