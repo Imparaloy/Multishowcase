@@ -159,9 +159,9 @@ async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_post_media_order_index ON post_media(post_id, order_index)');
     
     // Create indexes for comments table
-    await client.query('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_comments_author_id ON comments(author_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_comments_user_id ON comments(user_id)');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_comments_created_at ON comments(created_at)');
     
     // Create indexes for likes table
     await client.query('CREATE INDEX IF NOT EXISTS idx_likes_post_id ON likes(post_id)');
