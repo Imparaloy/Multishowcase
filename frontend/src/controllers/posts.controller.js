@@ -210,9 +210,6 @@ export const createPost = async (req, res) => {
     const title = titleInput !== '' ? titleInput : null;
     const content = contentInput !== '' ? contentInput : null;
 
-    const normalizedStatus = req.body.status === 'published' ? 'published' : 'unpublish';
-    const publishedAt = normalizedStatus === 'published' ? new Date() : null;
-
     const categoryMap = {
       '2d-art': '2D art',
       '3d-model': '3D model',
@@ -288,11 +285,11 @@ export const createPost = async (req, res) => {
 
     const postResult = await client.query(
       `
-      INSERT INTO posts (author_id, title, body, status, published_at, category, group_id)
-      VALUES ($1, $2, $3, $4::post_status, $5::timestamp, $6, $7)
+      INSERT INTO posts (author_id, title, body, category, group_id)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING post_id
       `,
-      [authorId, title, content, normalizedStatus, publishedAt, categoryEnum, groupId]
+      [authorId, title, content, categoryEnum, groupId]
     );
     const postId = postResult.rows[0].post_id;
 
@@ -337,8 +334,6 @@ export const createPost = async (req, res) => {
         p.title,
         p.body,
         p.category,
-        p.status,
-        p.published_at,
         p.created_at,
         u.user_id AS author_id,
         u.username AS author_username,
@@ -364,7 +359,7 @@ export const createPost = async (req, res) => {
       LEFT JOIN post_media pm ON pm.post_id = p.post_id
       WHERE p.post_id = $1
       GROUP BY
-        p.post_id, p.title, p.body, p.category, p.status, p.published_at, p.created_at,
+        p.post_id, p.title, p.body, p.category, p.created_at,
         u.user_id, u.username, u.display_name
     `, [postId]);
 
@@ -397,30 +392,25 @@ export const createPost = async (req, res) => {
         author_username: newPost.author_username,
         author_display_name: newPost.author_display_name,
         media: mediaUrls,
-        published_at: newPost.published_at,
         created_at: newPost.created_at,
         group_id: groupId // Include group_id in broadcast
       });
     }
 
-    // If the post is published, increment the user's post count
-    if (normalizedStatus === 'published') {
-      try {
-        await client.query(
-          'UPDATE users SET posts_count = COALESCE(posts_count, 0) + 1 WHERE user_id = $1',
-          [authorId]
-        );
-      } catch (error) {
-        console.error('Error updating post count:', error);
-        // Don't fail the request if post count update fails
-      }
+    // Increment the user's post count
+    try {
+      await client.query(
+        'UPDATE users SET posts_count = COALESCE(posts_count, 0) + 1 WHERE user_id = $1',
+        [authorId]
+      );
+    } catch (error) {
+      console.error('Error updating post count:', error);
+      // Don't fail the request if post count update fails
     }
 
     return res.status(201).json({
       success: true,
       postId,
-      status: normalizedStatus,
-      publishedAt,
       category: categoryEnum,
       mediaCount: combinedMedia.length,
       message: 'Post created successfully'
@@ -568,13 +558,12 @@ export const getLatestPosts = async (req, res) => {
     const posts = await getUnifiedFeed({
       limit,
       offset: 0,
-      viewerId,
-      statuses: viewerId ? ['published', 'unpublish'] : ['published']
+      viewerId
     });
     
-    // Filter posts created or published since the specified date
+    // Filter posts created since the specified date
     const latestPosts = posts.filter(post => {
-      const postDate = new Date(post.published_at || post.created_at);
+      const postDate = new Date(post.created_at);
       return postDate > sinceDate;
     });
     

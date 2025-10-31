@@ -103,7 +103,6 @@ export const getUnifiedFeed = async (options = {}) => {
     searchTerm = null,
     authorId = null,
     groupId = null,
-    statuses = ['published'],
     viewerId = null,
     excludeGroupPosts = false // New option to exclude group posts from main feed
   } = options;
@@ -126,63 +125,8 @@ export const getUnifiedFeed = async (options = {}) => {
     }
   }
 
-  const trimmedStatuses = Array.isArray(statuses)
-    ? Array.from(new Set(statuses.map((status) => (typeof status === 'string' ? status.trim() : '')).filter(Boolean)))
-    : [];
-
-  const effectiveStatuses = trimmedStatuses.length ? trimmedStatuses : ['published'];
-  const publicStatuses = effectiveStatuses.filter((status) => status === 'published');
-  const restrictedStatuses = effectiveStatuses.filter((status) => status !== 'published');
-
   const conditions = [];
   const values = [];
-
-  const statusClauses = [];
-
-  const appendStatusEquality = (status) => {
-    values.push(status);
-    const idx = values.length;
-    return `p.status = $${idx}::post_status`;
-  };
-
-  const appendStatusArray = (statusArr) => {
-    values.push(statusArr);
-    const idx = values.length;
-    return `p.status = ANY($${idx}::post_status[])`;
-  };
-
-  if (publicStatuses.length === 1) {
-    statusClauses.push(appendStatusEquality(publicStatuses[0]));
-  } else if (publicStatuses.length > 1) {
-    statusClauses.push(appendStatusArray(publicStatuses));
-  }
-
-  if (restrictedStatuses.length) {
-    if (viewerId) {
-      const statusClause = restrictedStatuses.length === 1
-        ? appendStatusEquality(restrictedStatuses[0])
-        : appendStatusArray(restrictedStatuses);
-      values.push(viewerId);
-      const viewerIdx = values.length;
-      statusClauses.push(`(${statusClause} AND p.author_id = $${viewerIdx})`);
-    } else if (authorId || groupId) {
-      // Caller explicitly scopes posts; honor requested statuses.
-      const statusClause = restrictedStatuses.length === 1
-        ? appendStatusEquality(restrictedStatuses[0])
-        : appendStatusArray(restrictedStatuses);
-      statusClauses.push(statusClause);
-    }
-  }
-
-  if (!statusClauses.length) {
-    statusClauses.push(appendStatusEquality('published'));
-  }
-
-  if (statusClauses.length === 1) {
-    conditions.push(statusClauses[0]);
-  } else {
-    conditions.push(`(${statusClauses.join(' OR ')})`);
-  }
 
   // Add category filter
   if (category && CATEGORY_MAP[category]) {
@@ -228,8 +172,6 @@ export const getUnifiedFeed = async (options = {}) => {
       p.title,
       p.body,
       p.category,
-      p.status,
-      p.published_at,
       p.created_at,
       u.user_id       AS author_id,
       u.username      AS author_username,
@@ -266,7 +208,7 @@ export const getUnifiedFeed = async (options = {}) => {
       WHERE l.post_id = p.post_id
     ) l ON true
   WHERE ${conditions.length ? conditions.join(' AND ') : 'TRUE'}
-    ORDER BY COALESCE(p.published_at, p.created_at) DESC
+    ORDER BY p.created_at DESC
     LIMIT $${limitIdx} OFFSET $${offsetIdx}
   `;
 

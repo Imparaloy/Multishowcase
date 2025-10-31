@@ -95,8 +95,7 @@
 									likes: Number(post.likes ?? 0),
 									primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
 									category: post.category || null,
-									currentUser: currentUser || null,
-									status: post.status || 'published'
+									currentUser: currentUser || null
 								}) %>
 							</div>
 						<% }) %>

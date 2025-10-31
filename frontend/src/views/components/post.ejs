@@ -5,8 +5,6 @@ const isOwner = userContext && typeof username !== 'undefined' && userContext.us
 const isAdmin = userContext && Array.isArray(userContext.groups) && userContext.groups.includes('admin');
 const canDeleteFromProps = typeof canDelete !== 'undefined' ? canDelete : null;
 const canDeletePost = canDeleteFromProps !== null ? canDeleteFromProps : (isOwner || isAdmin);
-const postStatus = typeof status !== 'undefined' ? status : 'published';
-const isUnpublished = postStatus === 'unpublish';
 
 // Get the post ID from the parent element's data attribute
 const postIdFromElement = typeof id !== 'undefined' ? id : null;

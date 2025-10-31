@@ -41,14 +41,14 @@ router.get('/comment', async (req, res) => {
           FROM post_media media
           WHERE media.post_id = p.post_id
         ) pm ON true
-        WHERE p.status = 'published'::post_status AND p.post_id = $1
+        WHERE p.post_id = $1
         LIMIT 1
         `,
         [id],
       );
 
       if (postRes.rows.length === 0) {
-        console.warn('[comment] No published post for requested id, attempting comment resolution', { requestedId: id });
+        console.warn('[comment] No post found for requested id, attempting comment resolution', { requestedId: id });
         // Try resolving as a comment id
         const commentRes = await pool.query(
           `SELECT post_id FROM comments WHERE comment_id = $1 LIMIT 1`,
@@ -85,7 +85,7 @@ router.get('/comment', async (req, res) => {
               FROM post_media media
               WHERE media.post_id = p.post_id
             ) pm ON true
-            WHERE p.status = 'published'::post_status AND p.post_id = $1
+            WHERE p.post_id = $1
             LIMIT 1
           `,
           values: [resolvedPostId],
@@ -106,8 +106,7 @@ router.get('/comment', async (req, res) => {
               FROM post_media media
               WHERE media.post_id = p.post_id
             ) pm ON true
-            WHERE p.status = 'published'::post_status
-            ORDER BY COALESCE(p.published_at, p.created_at) DESC
+            ORDER BY p.created_at DESC
             LIMIT 1
           `,
           values: [],
@@ -117,10 +116,6 @@ router.get('/comment', async (req, res) => {
     const row = postRes.rows[0];
     if (!row) {
       if (resolvedPostId) {
-        const statusCheck = await pool.query(
-          `SELECT status FROM posts WHERE post_id = $1 LIMIT 1`,
-          [resolvedPostId]
-        );
 
         if (statusCheck.rows.length > 0) {
           console.warn('[comment] Post found but not published; denying access', {
@@ -137,7 +132,7 @@ router.get('/comment', async (req, res) => {
       } else if (id) {
         console.warn('[comment] No post could be loaded for supplied id (no resolution)', { requestedId: id });
       } else {
-        console.warn('[comment] No published posts available for default comment view');
+        console.warn('[comment] No posts available for default comment view');
       }
       return res.status(404).send('Post not found');
     }

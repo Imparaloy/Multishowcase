@@ -16,8 +16,7 @@ async function getUserStats(userId, isOwnProfile = false) {
   try {
     const client = await pool.connect();
     
-    // Get posts count - for own profile, count all posts (published and unpublished)
-    // For other profiles, only count published posts
+    // Get posts count
     const postsResult = await client.query(
       isOwnProfile
         ? 'SELECT COUNT(*) as count FROM posts WHERE author_id = $1'
@@ -98,7 +97,6 @@ function formatPost(post, userRecord) {
     content: body,
     media: post.media || [],
     primaryMedia,
-    status: post.status,
     createdAt: post.created_at,
     comments: post.comments || 0,
     likes: post.likes || 0,
@@ -140,9 +138,6 @@ export async function renderProfilePage(req, res) {
     }
     
     // Get user's posts
-    // For own profile, show both published and unpublished posts
-    // For other users' profiles, only show published posts
-    const statuses = isOwnProfile ? ['published', 'unpublish'] : ['published'];
     
     const feedData = await getUnifiedFeed({
       authorId: profileUser.user_id,

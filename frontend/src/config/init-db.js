@@ -6,14 +6,7 @@ async function initializeDatabase() {
   try {
     console.log('Initializing database tables...');
     
-    // Create enum types first
-    await client.query(`
-      DO $$ BEGIN
-        CREATE TYPE post_status AS ENUM ('published', 'unpublish');
-      EXCEPTION
-        WHEN duplicate_object THEN null;
-      END $$;
-    `);
+    // Note: post_status enum removed as we're eliminating public/private post functionality
     
     await client.query(`
       DO $$ BEGIN
@@ -59,8 +52,6 @@ async function initializeDatabase() {
         title VARCHAR(500),
         body TEXT,
         category post_category,
-        status post_status DEFAULT 'published',
-        published_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         group_id UUID REFERENCES groups(group_id) ON DELETE CASCADE
@@ -199,8 +190,6 @@ async function initializeDatabase() {
     // Check and add missing columns to posts table before creating indexes
     const postsColumns = [
       { name: 'author_id', type: 'UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE' },
-      { name: 'status', type: 'post_status DEFAULT \'published\'' },
-      { name: 'published_at', type: 'TIMESTAMP' },
       { name: 'category', type: 'post_category' },
       { name: 'group_id', type: 'UUID REFERENCES groups(group_id) ON DELETE CASCADE' },
       { name: 'created_at', type: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP' }
@@ -275,8 +264,6 @@ async function initializeDatabase() {
     
     // Create indexes for posts table
     await client.query('CREATE INDEX IF NOT EXISTS idx_posts_author_id ON posts(author_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_posts_published_at ON posts(published_at)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_posts_group_id ON posts(group_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at)');
