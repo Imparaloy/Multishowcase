@@ -12,16 +12,14 @@ import {
 } from "../utils/session-user.js";
 
 // Helper function to get user statistics
-async function getUserStats(userId, isOwnProfile = false) {
+async function getUserStats(userId) {
   try {
     const client = await pool.connect();
     
     // Get posts count
     const postsResult = await client.query(
-      isOwnProfile
-        ? 'SELECT COUNT(*) as count FROM posts WHERE author_id = $1'
-        : 'SELECT COUNT(*) as count FROM posts WHERE author_id = $1 AND status = $2',
-      isOwnProfile ? [userId] : [userId, 'published']
+      'SELECT COUNT(*) as count FROM posts WHERE author_id = $1',
+      [userId]
     );
     const postsCount = parseInt(postsResult.rows[0]?.count || 0);
     
@@ -138,10 +136,8 @@ export async function renderProfilePage(req, res) {
     }
     
     // Get user's posts
-    
     const feedData = await getUnifiedFeed({
       authorId: profileUser.user_id,
-      statuses,
       viewerId: userRecord?.user_id,
       limit: 50 // Increase limit to show more posts on profile
     });
@@ -149,7 +145,7 @@ export async function renderProfilePage(req, res) {
     const feed = feedData.map(post => formatPost(post, profileUser));
     
     // Get user statistics
-    const stats = await getUserStats(profileUser.user_id, isOwnProfile);
+    const stats = await getUserStats(profileUser.user_id);
     
     // Check follow status (only if not viewing own profile)
     let isFollowingUser = false;
