@@ -126,13 +126,22 @@ async function fetchPendingJoinRequests(groupId) {
 async function findLatestJoinRequest(groupId, userId) {
   if (!groupId || !userId) return null;
 
+  // First get the user's UUID from their cognito_sub or username
+  const userResult = await pool.query(
+    'SELECT user_id FROM users WHERE cognito_sub = $1 OR username = $1 LIMIT 1',
+    [userId]
+  );
+  
+  if (userResult.rows.length === 0) return null;
+  const userUuid = userResult.rows[0].user_id;
+
   const { rows } = await pool.query(
     `SELECT request_id, status, created_at, responded_at
      FROM group_join_requests
      WHERE group_id = $1 AND user_id = $2
      ORDER BY created_at DESC
      LIMIT 1`,
-    [groupId, userId]
+    [groupId, userUuid]
   );
 
   return rows[0] || null;
