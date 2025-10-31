@@ -6,7 +6,6 @@ import { dirname } from 'path';
 import { headObjectExists, publicUrlForKey, uploadObject, getPresignedPutUrl as s3PresignPut } from '../services/s3.service.js'
 import { broadcastNewPost, broadcastPostDeletion } from './sse.controller.js';
 
-import path from 'path';
 import crypto from 'crypto';
 
 const __filename = fileURLToPath(import.meta.url);
