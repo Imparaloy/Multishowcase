@@ -76,7 +76,7 @@ export const createComment = async (req, res) => {
     // Create the comment
     const commentResult = await client.query(
       `
-      INSERT INTO comments (post_id, user_id, content)
+      INSERT INTO comments (post_id, author_id, content)
       VALUES ($1, $2, $3)
       RETURNING comment_id, created_at
       `,
@@ -98,7 +98,7 @@ export const createComment = async (req, res) => {
         u.username, 
         COALESCE(u.display_name, u.username) AS display_name
       FROM comments c 
-      JOIN users u ON u.user_id = c.user_id
+      JOIN users u ON u.user_id = c.author_id
       WHERE c.comment_id = $1
       `,
       [newComment.comment_id]
@@ -178,9 +178,9 @@ export const deleteComment = async (req, res) => {
     
     // Get comment info with author details
     const commentResult = await client.query(
-      `SELECT c.user_id, u.cognito_sub
+      `SELECT c.author_id, u.cognito_sub
        FROM comments c
-       JOIN users u ON u.user_id = c.user_id
+       JOIN users u ON u.user_id = c.author_id
        WHERE c.comment_id = $1`,
       [commentId]
     );
@@ -189,7 +189,7 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
     
-    const commentAuthorId = commentResult.rows[0].user_id;
+    const commentAuthorId = commentResult.rows[0].author_id;
     const commentAuthorSub = commentResult.rows[0].cognito_sub;
     
     // Check if user is comment owner or admin
