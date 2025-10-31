@@ -31,6 +31,29 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
           <a href="/profile/<%= username %>" class="hover:text-purple-400 transition-colors">@<%= username %></a>
         </p>
       </div>
+      <% if (!isOwner && typeof username !== 'undefined' && username !== (currentUser?.username || '')) { %>
+        <div class="follow-button-container ml-2" data-username="<%= username %>">
+          <% if (typeof isFollowing !== 'undefined' && isFollowing) { %>
+            <button
+              type="button"
+              class="follow-btn px-3 py-1 text-xs rounded-full bg-gray-600 hover:bg-gray-700 text-white font-semibold flex items-center gap-1 transition-colors"
+              onclick="toggleFollow('<%= username %>', true)"
+            >
+              <i data-feather="user-check" class="w-3 h-3"></i>
+              <span>Following</span>
+            </button>
+          <% } else { %>
+            <button
+              type="button"
+              class="follow-btn px-3 py-1 text-xs rounded-full bg-purple-600 hover:bg-purple-700 text-white font-semibold flex items-center gap-1 transition-colors"
+              onclick="toggleFollow('<%= username %>', false)"
+            >
+              <i data-feather="user-plus" class="w-3 h-3"></i>
+              <span>Follow</span>
+            </button>
+          <% } %>
+        </div>
+      <% } %>
     </div>
     
     <div class="relative dropdown">
@@ -446,12 +469,93 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
     }
   });
   
+  /**
+   * Toggle follow/unfollow status for a user
+   * @param {string} username - The username to follow/unfollow
+   * @param {boolean} isFollowing - Current follow status
+   */
+  function toggleFollow(username, isFollowing) {
+    if (!username) {
+      console.error('Username is required for follow action');
+      return;
+    }
+    
+    const followContainer = document.querySelector(`[data-username="${username}"]`);
+    if (!followContainer) {
+      console.error('Follow container not found for username:', username);
+      return;
+    }
+    
+    const followButton = followContainer.querySelector('.follow-btn');
+    if (!followButton) {
+      console.error('Follow button not found');
+      return;
+    }
+    
+    // Show loading state
+    const originalHTML = followButton.innerHTML;
+    followButton.disabled = true;
+    followButton.innerHTML = '<span class="inline-block animate-pulse">...</span>';
+    
+    // Determine API endpoint based on current status
+    const endpoint = isFollowing ? `/profile/${username}/unfollow` : `/profile/${username}/follow`;
+    const method = 'POST';
+    
+    // Send follow/unfollow request
+    fetch(endpoint, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.ok) {
+        // Update button appearance based on new status
+        if (isFollowing) {
+          // Was following, now unfollowed
+          followButton.className = 'follow-btn px-3 py-1 text-xs rounded-full bg-purple-600 hover:bg-purple-700 text-white font-semibold flex items-center gap-1 transition-colors';
+          followButton.setAttribute('onclick', `toggleFollow('${username}', false)`);
+          followButton.innerHTML = '<i data-feather="user-plus" class="w-3 h-3"></i><span>Follow</span>';
+          showNotification('User unfollowed successfully', 'success');
+        } else {
+          // Was not following, now following
+          followButton.className = 'follow-btn px-3 py-1 text-xs rounded-full bg-gray-600 hover:bg-gray-700 text-white font-semibold flex items-center gap-1 transition-colors';
+          followButton.setAttribute('onclick', `toggleFollow('${username}', true)`);
+          followButton.innerHTML = '<i data-feather="user-check" class="w-3 h-3"></i><span>Following</span>';
+          showNotification('User followed successfully', 'success');
+        }
+        
+        // Re-initialize feather icons for the updated button
+        if (window.feather && typeof window.feather.replace === 'function') {
+          window.feather.replace();
+        }
+      } else {
+        throw new Error(data.message || 'Unknown error occurred');
+      }
+    })
+    .catch(error => {
+      console.error('Error toggling follow status:', error);
+      showNotification(`Failed to ${isFollowing ? 'unfollow' : 'follow'} user: ${error.message}`, 'error');
+      
+      // Restore button state
+      followButton.disabled = false;
+      followButton.innerHTML = originalHTML;
+    });
+  }
+  
   // Make functions available globally
   window.deletePost = deletePost;
   window.showReportDialog = showReportDialog;
   window.closeReportDialog = closeReportDialog;
   window.submitReport = submitReport;
   window.togglePostDropdown = togglePostDropdown;
+  window.toggleFollow = toggleFollow;
   
   // Initialize Feather Icons for this component
   if (window.feather && typeof window.feather.replace === 'function') {

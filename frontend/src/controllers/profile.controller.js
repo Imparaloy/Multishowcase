@@ -11,11 +11,11 @@ import {
   ensureUserRecord,
 } from "../utils/session-user.js";
 
-async function fetchPostsForUser(userRecord) {
+async function fetchPostsForUser(userRecord, viewerId = null) {
   const posts = await getUnifiedFeed({
     authorId: userRecord.user_id,
     statuses: ['published', 'unpublish'],
-    viewerId: userRecord.user_id
+    viewerId: viewerId || userRecord.user_id
   });
   
   return posts.map((row) => {
@@ -38,6 +38,7 @@ async function fetchPostsForUser(userRecord) {
       createdAt: row.created_at,
       comments: row.comments || 0,
       likes: row.likes || 0,
+      isFollowing: row.isFollowing || false
     };
   });
 }
@@ -204,7 +205,7 @@ export async function renderProfilePage(req, res) {
 
   // If viewing own profile or no username specified, show current user's posts
   if (userRecord) {
-    feed = await fetchPostsForUser(userRecord);
+    feed = await fetchPostsForUser(userRecord, userRecord.user_id);
     if (feed.length) {
       console.log('Profile feed first media sample:', feed[0].media);
     }

@@ -107,6 +107,24 @@ export const getUnifiedFeed = async (options = {}) => {
     viewerId = null
   } = options;
 
+  // Function to check if viewer is following the author
+  async function isFollowing(followerId, followingId) {
+    if (!followerId || !followingId) return false;
+    
+    try {
+      const client = await pool.connect();
+      const result = await client.query(
+        'SELECT * FROM follows WHERE follower_id = $1 AND following_id = $2',
+        [followerId, followingId]
+      );
+      client.release();
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error("Error checking follow status:", error);
+      return false;
+    }
+  }
+
   const trimmedStatuses = Array.isArray(statuses)
     ? Array.from(new Set(statuses.map((status) => (typeof status === 'string' ? status.trim() : '')).filter(Boolean)))
     : [];
@@ -250,11 +268,15 @@ export const getUnifiedFeed = async (options = {}) => {
 
   const { rows } = await pool.query(query, values);
 
-  return rows.map((row) => {
+  // Process rows and add follow status
+  const processedPosts = await Promise.all(rows.map(async (row) => {
     const mediaEntries = normalizeMediaEntries(row.media);
     const mediaUrls = extractMediaUrls(mediaEntries);
     const primaryMedia = mediaUrls.length ? mediaUrls[0] : null;
     const body = row.body || '';
+    
+    // Check if viewer is following the post author
+    const isFollowingAuthor = viewerId ? await isFollowing(viewerId, row.author_id) : false;
 
     return {
       ...row,
@@ -267,7 +289,10 @@ export const getUnifiedFeed = async (options = {}) => {
       mediaMetadata: mediaEntries,
       primaryMedia,
       comments: Number(row.comments_count ?? 0),
-      likes: Number(row.likes_count ?? 0)
+      likes: Number(row.likes_count ?? 0),
+      isFollowing: isFollowingAuthor
     };
-  });
+  }));
+
+  return processedPosts;
 };
