@@ -1,5 +1,5 @@
-<aside class="w-1/5 bg-[#0d1230] flex flex-col justify-between p-6">
-  <div>
+<aside class="w-1/5 min-w-[220px] bg-[#0d1230] flex flex-col h-screen sticky top-0 p-6">
+  <div class="flex-1 flex flex-col">
     <h1 class="text-2xl font-bold mb-8">Multi<br/>showcase</h1>
     <nav class="space-y-4">
       <a href="/" aria-current="<%= activePage === 'home' ? 'page' : 'false' %>" class="block hover:text-gray-300 <%= activePage === 'home' ? 'text-white font-semibold' : 'text-white/70' %>"># Home</a>
@@ -8,7 +8,7 @@
       <a href="/profile" aria-current="<%= activePage === 'profile' ? 'page' : 'false' %>" class="block hover:text-gray-300 <%= activePage === 'profile' ? 'text-white font-semibold' : 'text-white/70' %>"># Profile</a>
     </nav>
   </div>
-  <div class="flex items-center space-x-2">
+  <div class="mt-auto flex items-center space-x-2 pt-6">
     <div class="w-10 h-10 bg-gray-500 rounded-full"></div>
     <div>
       <p class="font-bold"><%= currentUser?.displayName || 'Name' %></p>

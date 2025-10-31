@@ -46,7 +46,7 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
         </svg>
       </button>
       <div class="absolute right-0 mt-2 w-44 bg-[#1f2a50] border border-gray-700 rounded-lg shadow-lg py-2 z-10 hidden">
-        <% if (typeof id !== 'undefined') { %>
+        <% if (!isOwner && typeof id !== 'undefined') { %>
           <button
             type="button"
             class="w-full px-4 py-2 text-left text-sm text-yellow-400 hover:bg-[#252f58] hover:text-yellow-300 transition-colors"
