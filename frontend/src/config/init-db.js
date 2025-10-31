@@ -16,7 +16,6 @@ async function initializeDatabase() {
         display_name VARCHAR(255),
         bio TEXT,
         avatar_url VARCHAR(500),
-        posts_count INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -172,30 +171,7 @@ async function initializeDatabase() {
       )
     `);
     
-    // Check and add missing columns to users table before creating indexes
-    const usersColumns = [
-      { name: 'posts_count', type: 'INTEGER DEFAULT 0' }
-    ];
-    
-    for (const column of usersColumns) {
-      try {
-        const result = await client.query(`
-          SELECT column_name
-          FROM information_schema.columns
-          WHERE table_name = 'users' AND column_name = '${column.name}'
-        `);
-        
-        if (result.rows.length === 0) {
-          console.log(`Adding missing ${column.name} column to users table...`);
-          await client.query(`
-            ALTER TABLE users
-            ADD COLUMN ${column.name} ${column.type}
-          `);
-        }
-      } catch (err) {
-        console.error(`Error checking/adding ${column.name} column:`, err);
-      }
-    }
+    // No need to add posts_count column as it's been removed from the schema
     
     // Create indexes for users table
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_cognito_sub ON users(cognito_sub)');
@@ -419,21 +395,7 @@ async function initializeDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_follows_following_id ON follows(following_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_follows_follower_following ON follows(follower_id, following_id)');
     
-    // Initialize posts_count for existing users
-    try {
-      console.log('Initializing posts_count for existing users...');
-      await client.query(`
-        UPDATE users
-        SET posts_count = COALESCE(
-          (SELECT COUNT(*) FROM posts WHERE author_id = users.user_id AND status = 'published'),
-          0
-        )
-        WHERE posts_count IS NULL
-      `);
-      console.log('✅ Posts count initialized for existing users');
-    } catch (err) {
-      console.error('❌ Error initializing posts count:', err);
-    }
+    // No need to initialize posts_count as it's been removed from the schema
 
     console.log('✅ Database tables initialized successfully');
   } catch (err) {

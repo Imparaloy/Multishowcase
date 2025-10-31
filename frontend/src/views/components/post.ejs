@@ -231,21 +231,20 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
             
             setTimeout(() => {
               postElement.style.height = '0';
-              postElement.style.overflow = 'hidden';
-              
-              setTimeout(() => {
-                postElement.remove();
-                showNotification('Post deleted successfully', 'success');
-              }, 300);
-            }, 100);
+                postElement.style.overflow = 'hidden';
+                
+                setTimeout(() => {
+                  postElement.remove();
+                  showNotification('Post deleted successfully', 'success');
+              }, 100);
+            } else {
+              // Fallback: reload page if we can't find the element
+              window.location.reload();
+            }
           } else {
-            // Fallback: reload page if we can't find the element
-            window.location.reload();
+            throw new Error(data.error || 'Unknown error occurred');
           }
-        } else {
-          throw new Error(data.error || 'Unknown error occurred');
-        }
-      })
+        })
       .catch(error => {
         console.error('Error deleting post:', error);
         showNotification(`Failed to delete post: ${error.message}`, 'error');
