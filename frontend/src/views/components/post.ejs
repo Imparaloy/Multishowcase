@@ -26,7 +26,7 @@ const galleryMedia = heroMedia ? (heroIndex > -1 ? rawMediaList.filter((_, idx) 
 const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/comment';
 %>
 
-<div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg <%= isUnpublished ? 'border-l-4 border-yellow-500' : '' %>">
+<div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg">
   <!-- Post Header -->
   <header class="flex items-center justify-between mb-3">
     <div class="flex items-center space-x-3">
@@ -171,8 +171,9 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
 <!-- Post Actions -->
 <footer class="flex justify-start mt-4 text-gray-400 text-sm gap-8">
     <button
-      class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group"
+      class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group comment-button"
       onclick="window.location.href='<%= commentUrl %>'"
+      data-post-id="<%= id %>"
       aria-label="View comments"
     >
       <i data-feather="message-circle" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
@@ -180,8 +181,9 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
     </button>
     
     <button
-      class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group"
+      class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group like-button"
       onclick="likePost('<%= id %>')"
+      data-post-id="<%= id %>"
       aria-label="Like post"
     >
       <i data-feather="heart" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
@@ -274,8 +276,9 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
    * Show notification message
    * @param {string} message - The message to display
    * @param {string} type - The type of notification (success, error, info)
+   * @param {number} duration - The duration in milliseconds to show the notification (default: 3000)
    */
-  function showNotification(message, type = 'info') {
+  function showNotification(message, type = 'info', duration = 3000) {
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full`;
@@ -299,7 +302,7 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
       notification.classList.add('translate-x-0');
     }, 10);
     
-    // Remove after 3 seconds
+    // Remove after specified duration
     setTimeout(() => {
       notification.classList.add('translate-x-full');
       setTimeout(() => {
@@ -307,7 +310,7 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
           notification.parentNode.removeChild(notification);
         }
       }, 300);
-    }, 3000);
+    }, duration);
   }
   
   /**
@@ -577,6 +580,27 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
       return;
     }
     
+    // Find the like button for this specific post
+    const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+    if (!postElement) {
+      console.error('Post element not found for ID:', postId);
+      return;
+    }
+    
+    const likeButton = postElement.querySelector('button.like-button');
+    if (!likeButton) {
+      console.error('Like button not found for post:', postId);
+      return;
+    }
+    
+    const likeCountElement = likeButton.querySelector('span');
+    const heartIcon = likeButton.querySelector('[data-feather="heart"]');
+    
+    // Show loading state
+    const originalHTML = likeButton.innerHTML;
+    likeButton.disabled = true;
+    likeButton.innerHTML = '<span class="inline-block animate-pulse">...</span>';
+    
     // Send like/unlike request
     fetch(`/api/posts/${postId}/like`, {
       method: 'POST',
@@ -593,20 +617,21 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
     .then(data => {
       if (data.success) {
         // Update the like count
-        const likeButton = document.querySelector(`button[onclick="likePost('${postId}')"]`);
-        const likeCountElement = likeButton?.querySelector('span');
-        
         if (likeCountElement && data.likes !== undefined) {
           likeCountElement.textContent = data.likes;
         }
         
-        // Toggle the heart icon color
-        const heartIcon = likeButton?.querySelector('[data-feather="heart"]');
+        // Toggle the heart icon color based on like status
         if (heartIcon) {
-          heartIcon.classList.toggle('text-red-500');
+          if (data.liked) {
+            heartIcon.classList.add('text-red-500', 'fill-current');
+          } else {
+            heartIcon.classList.remove('text-red-500', 'fill-current');
+          }
         }
         
-        showNotification(data.liked ? 'Post liked' : 'Post unliked', 'success');
+        // Show subtle notification instead of alert
+        showNotification(data.liked ? '❤️ Liked' : '💔 Unliked', 'info', 1500);
       } else {
         throw new Error(data.error || 'Failed to toggle like status');
       }
@@ -614,6 +639,16 @@ const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/commen
     .catch(error => {
       console.error('Error toggling like status:', error);
       showNotification(`Failed to toggle like: ${error.message}`, 'error');
+    })
+    .finally(() => {
+      // Restore button state
+      likeButton.disabled = false;
+      likeButton.innerHTML = originalHTML;
+      
+      // Re-initialize feather icons for the restored button
+      if (window.feather && typeof window.feather.replace === 'function') {
+        window.feather.replace();
+      }
     });
   }
   

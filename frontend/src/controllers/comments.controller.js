@@ -106,6 +106,24 @@ export const createComment = async (req, res) => {
 
     if (commentData.length > 0) {
       const comment = commentData[0];
+      
+      // Broadcast comment event for real-time updates
+      const { broadcastCommentEvent } = await import('./sse.controller.js');
+      if (broadcastCommentEvent) {
+        // Get updated comment count for the post
+        const countResult = await client.query(
+          'SELECT COUNT(*)::int as comments_count FROM comments WHERE post_id = $1',
+          [postId]
+        );
+        
+        const commentsCount = countResult.rows[0].comments_count;
+        
+        broadcastCommentEvent({
+          post_id: postId,
+          comments: commentsCount
+        });
+      }
+      
       return res.status(201).json({
         success: true,
         comment: {

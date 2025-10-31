@@ -218,8 +218,10 @@
               </button>
               
               <button
-                class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group"
-                aria-label="Like post"
+                class="flex items-center space-x-2 cursor-pointer hover:text-white transition-colors group like-button"
+                onclick="likePost('${comment.id}')"
+                data-post-id="${comment.id}"
+                aria-label="Like comment"
               >
                 <i data-feather="heart" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
                 <span>${comment.likes || 0}</span>

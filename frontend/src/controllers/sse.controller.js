@@ -91,6 +91,38 @@ export const broadcastPostDeletion = (postId, authorId = null) => {
 };
 
 /**
+ * Broadcast like event to all connected clients
+ * @param {Object} data - The like event data
+ */
+export const broadcastLikeEvent = (data) => {
+  const eventData = JSON.stringify(data);
+  
+  activeConnections.forEach(connection => {
+    try {
+      connection.write(`event: post_liked\ndata: ${eventData}\n\n`);
+    } catch (error) {
+      console.error('Error broadcasting like event:', error);
+    }
+  });
+};
+
+/**
+ * Broadcast comment event to all connected clients
+ * @param {Object} data - The comment event data
+ */
+export const broadcastCommentEvent = (data) => {
+  const eventData = JSON.stringify(data);
+  
+  activeConnections.forEach(connection => {
+    try {
+      connection.write(`event: new_comment\ndata: ${eventData}\n\n`);
+    } catch (error) {
+      console.error('Error broadcasting comment event:', error);
+    }
+  });
+};
+
+/**
  * Get the number of active SSE connections
  * @returns {number} Number of active connections
  */

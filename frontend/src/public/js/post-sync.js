@@ -14,7 +14,7 @@ class PostSync {
     console.log('PostSync: Initializing SSE connection');
     
     // Only connect to SSE on pages that might have posts
-    const pathsToConnect = ['/', '/explore', '/following', '/profile', '/groups/'];
+    const pathsToConnect = ['/', '/explore', '/following', '/profile', '/groups/', '/comment'];
     const shouldConnect = pathsToConnect.some(path => window.location.pathname.startsWith(path));
     
     if (!shouldConnect) {
@@ -37,6 +37,24 @@ class PostSync {
       
       // Update post count if we're on a profile page
       this.updatePostCount(data.post.author_id, 1);
+    });
+    
+    // Handle like events
+    this.eventSource.addEventListener('post_liked', (event) => {
+      const data = JSON.parse(event.data);
+      console.log('PostSync: Post like received', data);
+      
+      // Update like count for the post
+      this.updateLikeCount(data.post_id, data.likes, data.liked);
+    });
+    
+    // Handle comment events
+    this.eventSource.addEventListener('new_comment', (event) => {
+      const data = JSON.parse(event.data);
+      console.log('PostSync: New comment received', data);
+      
+      // Update comment count for the post
+      this.updateCommentCount(data.post_id, data.comments);
     });
     
     // Handle post deletion events
@@ -116,6 +134,54 @@ class PostSync {
         }, 300);
       }, 100);
     }
+  }
+  /**
+   * Update like count for a post
+   * @param {string} postId - The ID of the post
+   * @param {number} likes - The new like count
+   * @param {boolean} liked - Whether the current user liked the post
+   */
+  updateLikeCount(postId, likes, liked) {
+    // Find all like buttons for this post
+    const likeButtons = document.querySelectorAll(`button[data-post-id="${postId}"].like-button`);
+    
+    likeButtons.forEach(button => {
+      const likeCountElement = button.querySelector('span');
+      const heartIcon = button.querySelector('[data-feather="heart"]');
+      
+      // Update like count
+      if (likeCountElement) {
+        likeCountElement.textContent = likes;
+      }
+      
+      // Update heart icon color
+      if (heartIcon) {
+        if (liked) {
+          heartIcon.classList.add('text-red-500', 'fill-current');
+        } else {
+          heartIcon.classList.remove('text-red-500', 'fill-current');
+        }
+      }
+    });
+  }
+
+  /**
+   * Update comment count for a post
+   * @param {string} postId - The ID of the post
+   * @param {number} comments - The new comment count
+   */
+  updateCommentCount(postId, comments) {
+    // Find all comment buttons for this post
+    const commentButtons = document.querySelectorAll(`button[data-post-id="${postId}"].comment-button`);
+    
+    commentButtons.forEach(button => {
+      const commentCountElement = button.querySelector('span');
+      
+      // Update comment count
+      if (commentCountElement) {
+        commentCountElement.textContent = comments;
+      }
+    });
   }
 
   /**

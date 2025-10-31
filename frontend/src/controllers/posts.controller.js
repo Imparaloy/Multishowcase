@@ -578,4 +578,102 @@ export const getLatestPosts = async (req, res) => {
   }
 };
 
+export const toggleLike = async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    // Get user info from JWT token
+    const userSub = req.user?.sub;
+    if (!userSub) {
+      return res.status(401).json({ success: false, error: 'Unauthorized: Missing user token' });
+    }
+    
+    // Get user ID from cognito_sub
+    const userResult = await client.query(
+      'SELECT user_id FROM users WHERE cognito_sub = $1',
+      [userSub]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'User not found' });
+    }
+    
+    const userId = userResult.rows[0].user_id;
+    const postId = req.params.id;
+    
+    // Check if post exists
+    const postResult = await client.query(
+      'SELECT post_id FROM posts WHERE post_id = $1',
+      [postId]
+    );
+    
+    if (postResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Post not found' });
+    }
+    
+    // Check if user already liked the post
+    const likeResult = await client.query(
+      'SELECT like_id FROM likes WHERE post_id = $1 AND user_id = $2',
+      [postId, userId]
+    );
+    
+    let liked = false;
+    if (likeResult.rows.length === 0) {
+      // User hasn't liked the post yet, add a like
+      await client.query(
+        'INSERT INTO likes (post_id, user_id) VALUES ($1, $2)',
+        [postId, userId]
+      );
+      liked = true;
+    } else {
+      // User already liked the post, remove the like
+      await client.query(
+        'DELETE FROM likes WHERE post_id = $1 AND user_id = $2',
+        [postId, userId]
+      );
+      liked = false;
+    }
+    
+    await client.query('COMMIT');
+    
+    // Get updated like count
+    const countResult = await client.query(
+      'SELECT COUNT(*)::int as likes_count FROM likes WHERE post_id = $1',
+      [postId]
+    );
+    
+    const likesCount = countResult.rows[0].likes_count;
+    
+    // Broadcast like event for real-time updates
+    const { broadcastLikeEvent } = await import('./sse.controller.js');
+    if (broadcastLikeEvent) {
+      broadcastLikeEvent({
+        post_id: postId,
+        likes: likesCount,
+        liked
+      });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      liked,
+      likes: likesCount,
+      message: liked ? 'Post liked' : 'Post unliked'
+    });
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error toggling like:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to toggle like',
+      details: err.message
+    });
+  } finally {
+    client.release();
+  }
+};
+
 
