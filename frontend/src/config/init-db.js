@@ -24,7 +24,6 @@ async function initializeDatabase() {
         username VARCHAR(50) UNIQUE NOT NULL,
         display_name VARCHAR(100),
         email VARCHAR(100) UNIQUE NOT NULL,
-        avatar_url VARCHAR(1000),
         role TEXT NOT NULL DEFAULT 'user',
         status TEXT DEFAULT 'active',
         created_at TIMESTAMPTZ DEFAULT now(),
@@ -182,25 +181,6 @@ async function initializeDatabase() {
     `);
     
     // No need to add posts_count column as it's been removed from the schema
-    
-    // Check and add avatar_url column to users table if it doesn't exist
-    try {
-      const result = await client.query(`
-        SELECT column_name
-        FROM information_schema.columns
-        WHERE table_name = 'users' AND column_name = 'avatar_url'
-      `);
-      
-      if (result.rows.length === 0) {
-        console.log('Adding avatar_url column to users table...');
-        await client.query(`
-          ALTER TABLE users
-          ADD COLUMN avatar_url VARCHAR(1000)
-        `);
-      }
-    } catch (err) {
-      console.error('Error checking/adding avatar_url column:', err);
-    }
     
     // Create indexes for users table
     await client.query('CREATE INDEX IF NOT EXISTS idx_users_cognito_sub ON users(cognito_sub)');

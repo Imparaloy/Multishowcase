@@ -199,7 +199,7 @@ export async function renderProfileEditPage(req, res) {
 }
 
 export async function updateProfile(req, res) {
-  const { displayName, username, email, avatar_url } = req.body;
+  const { displayName, email } = req.body;
   const currentUser = await loadCurrentUser(req, { res });
   
   if (!currentUser?.user_id && !currentUser?.cognito_sub) {
@@ -211,7 +211,6 @@ export async function updateProfile(req, res) {
 
   const safeTrim = (value) => (typeof value === "string" ? value.trim() : undefined);
   const trimmedDisplayName = safeTrim(displayName);
-  const trimmedUsername = safeTrim(username);
   const trimmedEmail = safeTrim(email);
 
   // Validation
@@ -221,23 +220,6 @@ export async function updateProfile(req, res) {
       message: "Display name must be 100 characters or less"
     });
   }
-  
-  if (trimmedUsername) {
-    if (trimmedUsername.length > 50) {
-      return res.status(400).json({
-        ok: false,
-        message: "Username must be 50 characters or less"
-      });
-    }
-    
-    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
-      return res.status(400).json({
-        ok: false,
-        message: "Username can only contain letters, numbers, and underscores"
-      });
-    }
-  }
-  
   if (trimmedEmail) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
@@ -252,22 +234,6 @@ export async function updateProfile(req, res) {
   
   try {
     await client.query('BEGIN');
-    
-    // Check for duplicate username if it's being changed
-    if (trimmedUsername && trimmedUsername !== currentUser.username) {
-      const { rows: existingUser } = await client.query(
-        'SELECT user_id FROM users WHERE username = $1 AND user_id != $2',
-        [trimmedUsername, currentUser.user_id]
-      );
-      
-      if (existingUser.length > 0) {
-        await client.query('ROLLBACK');
-        return res.status(400).json({
-          ok: false,
-          message: "Username is already taken"
-        });
-      }
-    }
     
     // Check for duplicate email if it's being changed
     if (trimmedEmail && trimmedEmail !== currentUser.email) {
@@ -289,18 +255,14 @@ export async function updateProfile(req, res) {
     await client.query(
       `UPDATE users
        SET display_name = COALESCE($1, display_name),
-           username = COALESCE($2, username),
-           email = COALESCE($3, email),
-           avatar_url = COALESCE($6, avatar_url),
+           email = COALESCE($2, email),
            updated_at = NOW()
-       WHERE user_id = $4 OR cognito_sub = $5`,
+       WHERE user_id = $3 OR cognito_sub = $4`,
       [
         trimmedDisplayName ?? null,
-        trimmedUsername ?? null,
         trimmedEmail ?? null,
         currentUser.user_id,
-        currentUser.cognito_sub,
-        avatar_url ?? null
+        currentUser.cognito_sub
       ]
     );
     
@@ -314,9 +276,7 @@ export async function updateProfile(req, res) {
       message: "Profile updated successfully",
       data: {
         displayName: trimmedDisplayName || currentUser.display_name,
-        username: trimmedUsername || currentUser.username,
-        email: trimmedEmail || currentUser.email,
-        avatar_url: avatar_url || currentUser.avatar_url
+        email: trimmedEmail || currentUser.email
       }
     });
 
