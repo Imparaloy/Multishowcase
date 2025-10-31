@@ -91,7 +91,13 @@ async function verifyEither(token) {
 
 async function authenticateCognitoJWT(req, res, next) {
   console.log('authenticateCognitoJWT called');
-  
+
+  if (isAlbHealthCheck(req)) {
+    req.user  = { username: 'alb-healthcheck', groups: [] };
+    res.locals.user = req.user;
+    return next();
+  }
+
   // Check if verifiers are configured
   if (!accessVerifier || !idVerifier) {
     console.error('Authentication verifiers not configured');
@@ -178,6 +184,11 @@ async function attachUserToLocals(req, res, next) {
   }
 
   return next();
+}
+
+function isAlbHealthCheck(req) {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  return ua.startsWith('elb-healthchecker');
 }
 
 export { authenticateCognitoJWT, requireAuth, requireRole, attachUserToLocals };
