@@ -5,6 +5,8 @@ const isOwner = userContext && typeof username !== 'undefined' && userContext.us
 const isAdmin = userContext && Array.isArray(userContext.groups) && userContext.groups.includes('admin');
 const canDeleteFromProps = typeof canDelete !== 'undefined' ? canDelete : null;
 const canDeletePost = canDeleteFromProps !== null ? canDeleteFromProps : (isOwner || isAdmin);
+const postStatus = typeof status !== 'undefined' ? status : 'published';
+const isUnpublished = postStatus === 'unpublish';
 
 // Get the post ID from the parent element's data attribute
 const postIdFromElement = typeof id !== 'undefined' ? id : null;
@@ -20,7 +22,7 @@ const galleryMedia = heroMedia ? (heroIndex > -1 ? rawMediaList.filter((_, idx) 
 const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
 %>
 
-<div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg">
+<div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg <%= isUnpublished ? 'border-l-4 border-yellow-500' : '' %>">
   <!-- Post Header -->
   <header class="flex items-center justify-between mb-3">
     <div class="flex items-center space-x-3">

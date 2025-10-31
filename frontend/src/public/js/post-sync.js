@@ -14,7 +14,7 @@ class PostSync {
     console.log('PostSync: Initializing SSE connection');
     
     // Only connect to SSE on pages that might have posts
-    const pathsToConnect = ['/', '/explore', '/following', '/profile/', '/groups/'];
+    const pathsToConnect = ['/', '/explore', '/following', '/profile', '/groups/'];
     const shouldConnect = pathsToConnect.some(path => window.location.pathname.startsWith(path));
     
     if (!shouldConnect) {

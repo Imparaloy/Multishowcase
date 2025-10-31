@@ -103,7 +103,7 @@
 				<div class="p-4 space-y-4">
 					<% if (typeof feed !== 'undefined' && Array.isArray(feed) && feed.length) { %>
 						<% feed.forEach(function(post){ %>
-							<div data-post-id="<%= post.post_id || post.id %>">
+							<div data-post-id="<%= post.post_id || post.id %>" class="post-container">
 								<%- include('components/post', {
 									id: post.post_id || post.id,
 									name: post.author_display_name || post.name || post.display_name,
@@ -115,7 +115,8 @@
 									primaryMedia: post.primaryMedia || (Array.isArray(post.media) && post.media.length ? post.media[0] : null),
 									category: post.category || null,
 									currentUser: typeof currentUser !== 'undefined' ? currentUser : null,
-									isFollowing: post.isFollowing || false
+									isFollowing: post.isFollowing || false,
+									status: post.status || 'published'
 								}) %>
 							</div>
 						<% }) %>

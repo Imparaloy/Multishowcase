@@ -12,7 +12,7 @@
 			<%- include('components/sidebar') %>
 
 			<main class="flex-1 border-x p-2 rounded border-gray-700">
-				<% const meUser = typeof me !== 'undefined' ? me : { name: 'Name', username: 'username' }; %>
+				<% const meUser = typeof me !== 'undefined' ? me : { name: 'Name', username: 'username', bio: '', email: '' }; %>
 				<% const viewer = typeof currentUser !== 'undefined' ? currentUser : null; %>
 
 				<!-- Edit Profile Header -->
@@ -28,9 +28,13 @@
 						<form id="editProfileForm" class="space-y-6">
 							<!-- Profile Picture (Display Only) -->
 							<div class="flex items-center gap-4">
-								<div class="w-20 h-20 bg-gray-500 rounded-full flex items-center justify-center">
-									<i data-feather="user" class="w-8 h-8 text-gray-300"></i>
-								</div>
+								<% if (meUser.avatar_url) { %>
+									<img src="<%= meUser.avatar_url %>" alt="<%= meUser.name %>" class="w-20 h-20 rounded-full object-cover">
+								<% } else { %>
+									<div class="w-20 h-20 bg-gray-500 rounded-full flex items-center justify-center">
+										<i data-feather="user" class="w-8 h-8 text-gray-300"></i>
+									</div>
+								<% } %>
 								<div>
 									<p class="text-sm text-gray-400">Profile picture</p>
 									<p class="text-xs text-gray-500 mt-1">Profile picture editing is not available yet</p>
