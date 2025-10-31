@@ -62,6 +62,7 @@
               <div data-post-id="<%= comment.id %>">
                 <%- include('components/post', {
                   id: comment.id,
+                  parentPostId: comment.parentPostId || post.id,
                   name: comment.name,
                   username: comment.username,
                   content: comment.content,

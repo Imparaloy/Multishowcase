@@ -31,15 +31,13 @@ async function resolveAuthorId(client, claims) {
 
 export const createComment = async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
-    await client.query('BEGIN');
-
     if (!req.user?.sub) {
       throw new Error('Unauthorized: Missing Cognito subject');
     }
 
-    const userId = await resolveAuthorId(client, req.user);
     const postId = req.body.post_id;
     const content = req.body.content?.trim();
 
@@ -57,7 +55,7 @@ export const createComment = async (req, res) => {
       });
     }
 
-    // Check if the post exists
+    // Ensure the post exists before opening a transaction
     const postResult = await client.query(
       'SELECT post_id FROM posts WHERE post_id = $1',
       [postId]
@@ -69,6 +67,11 @@ export const createComment = async (req, res) => {
         error: 'Post not found'
       });
     }
+
+    await client.query('BEGIN');
+    transactionStarted = true;
+
+    const userId = await resolveAuthorId(client, req.user);
 
     // Create the comment
     const commentResult = await client.query(
@@ -83,6 +86,7 @@ export const createComment = async (req, res) => {
     const newComment = commentResult.rows[0];
 
     await client.query('COMMIT');
+    transactionStarted = false;
 
     // Get the complete comment data with author info
     const { rows: commentData } = await client.query(
@@ -119,7 +123,13 @@ export const createComment = async (req, res) => {
       throw new Error('Failed to retrieve created comment');
     }
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (transactionStarted) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('Rollback failed after comment creation error:', rollbackErr);
+      }
+    }
     console.error('Error creating comment:', err);
     return res.status(500).json({
       success: false,

@@ -10,6 +10,10 @@ const isUnpublished = postStatus === 'unpublish';
 
 // Get the post ID from the parent element's data attribute
 const postIdFromElement = typeof id !== 'undefined' ? id : null;
+const canonicalPostId =
+  typeof parentPostId !== 'undefined' && parentPostId
+    ? parentPostId
+    : postIdFromElement;
 
 // Content processing
 const textContent = typeof content === 'string' ? content.trim() : (typeof body === 'string' ? body.trim() : '');
@@ -19,7 +23,7 @@ const heroIndex = heroMedia ? rawMediaList.indexOf(heroMedia) : -1;
 const galleryMedia = heroMedia ? (heroIndex > -1 ? rawMediaList.filter((_, idx) => idx !== heroIndex) : rawMediaList) : rawMediaList;
 
 // URL generation for actions
-const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
+const commentUrl = canonicalPostId ? `/comment?id=${canonicalPostId}` : '/comment';
 %>
 
 <div class="bg-[#182244] rounded-xl p-4 mb-4 text-white shadow-lg <%= isUnpublished ? 'border-l-4 border-yellow-500' : '' %>">
