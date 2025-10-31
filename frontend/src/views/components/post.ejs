@@ -72,33 +72,62 @@ const commentUrl = typeof id !== 'undefined' ? `/comment?id=${id}` : '/comment';
   </header>
 
   <!-- Post Content -->
-  <main class="text-sm leading-relaxed text-gray-200">
-    <% if (textContent) { %>
-      <p class="whitespace-pre-line mb-3"><%= textContent %></p>
-    <% } %>
+  <%
+  // ===== Helpers =====
+  function isVideo(u='') {
+    return /\.(mp4|webm|ogg)(\?.*)?$/i.test(u);
+  }
+  function isImage(u='') {
+    return /\.(apng|avif|gif|jpg|jpeg|png|svg|webp)(\?.*)?$/i.test(u);
+  }
+  function mediaTag(u) {
+    // ถ้าอยากรองรับ CloudFront ให้แปลง URL ตรงนี้ได้ เช่น return CDN_BASE + u
+    const url = u;
+    if (isVideo(url)) {
+      // วิดีโอ: ใช้ <video> + source ให้ชัดเจน
+      return `
+        <video controls preload="metadata" class="w-full h-full object-contain bg-black"
+               playsinline>
+          <source src="${url}" type="video/${url.toLowerCase().includes('.webm') ? 'webm' : (url.toLowerCase().includes('.ogg') ? 'ogg' : 'mp4')}">
+          Your browser does not support HTML5 video.
+        </video>
+      `;
+    }
+    if (isImage(url)) {
+      // รูปภาพปกติ
+      return `<img src="${url}" alt="Post media" class="w-full h-full object-cover" loading="lazy" />`;
+    }
+    // ไม่รู้ชนิด: ลิงก์ให้เปิดแท็บใหม่
+    return `<a href="${url}" target="_blank" rel="noopener" class="underline text-purple-300 break-words">${url}</a>`;
+  }
+%>
 
-    <% if (heroMedia) { %>
-      <div class="mt-3 overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833] shadow-md">
-        <a href="<%= heroMedia %>" target="_blank" rel="noopener" class="block">
-          <img src="<%= heroMedia %>" alt="Post media" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />
-        </a>
-      </div>
-    <% } %>
+<main class="text-sm leading-relaxed text-gray-200">
+  <% if (textContent) { %>
+    <p class="whitespace-pre-line mb-3"><%= textContent %></p>
+  <% } %>
 
-    <% if (galleryMedia.length) { %>
-      <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        <% galleryMedia.forEach(function(url) { %>
-          <a href="<%= url %>" target="_blank" rel="noopener" class="block overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833] shadow-md hover:shadow-lg transition-shadow">
-            <img src="<%= url %>" alt="Post media" class="w-full h-full object-cover hover:scale-105 transition-transform duration-300" loading="lazy" />
-          </a>
-        <% }); %>
-      </div>
-    <% } %>
+  <% if (heroMedia) { %>
+    <div class="mt-3 overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833] shadow-md">
+      <%= ejs.render(mediaTag(heroMedia)) %>
+    </div>
+  <% } %>
 
-    <% if (!textContent && !heroMedia && !galleryMedia.length && typeof content !== 'undefined' && content) { %>
-      <p class="text-gray-200"><%= content %></p>
-    <% } %>
-  </main>
+  <% if (galleryMedia.length) { %>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+      <% galleryMedia.forEach(function(u) { %>
+        <div class="overflow-hidden rounded-xl border border-gray-700/60 bg-[#111833] shadow-md">
+          <%= ejs.render(mediaTag(u)) %>
+        </div>
+      <% }); %>
+    </div>
+  <% } %>
+
+  <% if (!textContent && !heroMedia && !galleryMedia.length && typeof content !== 'undefined' && content) { %>
+    <p class="text-gray-200"><%= content %></p>
+  <% } %>
+</main>
+
 
   <!-- Post Actions -->
   <footer class="flex justify-start mt-4 text-gray-400 text-sm gap-8">
