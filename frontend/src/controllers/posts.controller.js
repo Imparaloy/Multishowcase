@@ -136,7 +136,28 @@ async function uploadIncomingMedia(files, user) {
   const list = Array.isArray(files) ? files : [files];
   const uploads = [];
 
-  
+  for (const file of list) {
+    if (!file) continue;
+    const baseName = file.name ? path.basename(file.name) : `upload_${Date.now()}`;
+    const key = `users/${targetUsername}/uploads/${Date.now()}_${baseName}`;
+    const contentType = file.mimetype || 'application/octet-stream';
+
+    await uploadObject({ key, body: file.data, contentType });
+
+    const mediaType = inferMediaType(contentType);
+    const publicUrl = publicUrlForKey(key);
+
+    uploads.push({
+      key,
+      s3_key: key,
+      media_type: mediaType,
+      filename: file.name || baseName,
+      fileSize: file.size,
+      filetype: contentType,
+      content_type: contentType,
+      s3_url: publicUrl
+    });
+  }
 
   return uploads;
 }
