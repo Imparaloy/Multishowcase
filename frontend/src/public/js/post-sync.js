@@ -44,6 +44,9 @@ class PostSync {
       const data = JSON.parse(event.data);
       console.log('PostSync: Post deletion received', data);
       
+      // Remove the post element from DOM
+      this.removePostElement(data.postId);
+      
       // Update post count if we're on a profile page
       this.updatePostCount(data.authorId, -1);
     });
@@ -85,6 +88,34 @@ class PostSync {
     postCountElement.textContent = newCount;
     
     console.log(`PostSync: Updated post count from ${currentCount} to ${newCount}`);
+  }
+
+  /**
+   * Remove post element from DOM
+   * @param {string} postId - The ID of the post to remove
+   */
+  removePostElement(postId) {
+    // Find the post element by ID
+    const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+    if (postElement) {
+      // Add fade-out animation
+      postElement.style.transition = 'all 0.3s ease-out';
+      postElement.style.opacity = '0';
+      postElement.style.transform = 'scale(0.95)';
+      postElement.style.marginBottom = '0';
+      postElement.style.padding = '0';
+      
+      // Remove after animation completes
+      setTimeout(() => {
+        postElement.style.height = '0';
+        postElement.style.overflow = 'hidden';
+        
+        setTimeout(() => {
+          postElement.remove();
+          console.log(`PostSync: Removed post ${postId} from DOM`);
+        }, 300);
+      }, 100);
+    }
   }
 
   /**
