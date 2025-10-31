@@ -39,7 +39,7 @@ export const createComment = async (req, res) => {
       throw new Error('Unauthorized: Missing Cognito subject');
     }
 
-    const authorId = await resolveAuthorId(client, req.user);
+    const userId = await resolveAuthorId(client, req.user);
     const postId = req.body.post_id;
     const content = req.body.content?.trim();
 
@@ -73,11 +73,11 @@ export const createComment = async (req, res) => {
     // Create the comment
     const commentResult = await client.query(
       `
-      INSERT INTO comments (post_id, author_id, body)
+      INSERT INTO comments (post_id, user_id, content)
       VALUES ($1, $2, $3)
       RETURNING comment_id, created_at
       `,
-      [postId, authorId, content]
+      [postId, userId, content]
     );
 
     const newComment = commentResult.rows[0];
@@ -89,12 +89,12 @@ export const createComment = async (req, res) => {
       `
       SELECT 
         c.comment_id, 
-        c.body, 
+        c.content, 
         c.created_at, 
         u.username, 
         COALESCE(u.display_name, u.username) AS display_name
       FROM comments c 
-      JOIN users u ON u.user_id = c.author_id
+      JOIN users u ON u.user_id = c.user_id
       WHERE c.comment_id = $1
       `,
       [newComment.comment_id]
@@ -108,7 +108,7 @@ export const createComment = async (req, res) => {
           id: comment.comment_id,
           name: comment.display_name,
           username: comment.username,
-          content: comment.body,
+          content: comment.content,
           media: [],
           comments: 0,
           likes: 0,
@@ -150,9 +150,9 @@ export const deleteComment = async (req, res) => {
     
     // Get comment info with author details
     const commentResult = await client.query(
-      `SELECT c.author_id, u.cognito_sub
+      `SELECT c.user_id, u.cognito_sub
        FROM comments c
-       JOIN users u ON u.user_id = c.author_id
+       JOIN users u ON u.user_id = c.user_id
        WHERE c.comment_id = $1`,
       [commentId]
     );
@@ -161,7 +161,7 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
     
-    const commentAuthorId = commentResult.rows[0].author_id;
+    const commentAuthorId = commentResult.rows[0].user_id;
     const commentAuthorSub = commentResult.rows[0].cognito_sub;
     
     // Check if user is comment owner or admin

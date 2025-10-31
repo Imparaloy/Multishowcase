@@ -86,8 +86,8 @@ router.get('/comment', async (req, res) => {
 
     // Fetch comments for this post (basic version)
     const commentsRes = await pool.query(
-      `SELECT c.comment_id, c.body, c.created_at, u.username, COALESCE(u.display_name, u.username) AS display_name
-       FROM comments c JOIN users u ON u.user_id = c.author_id
+      `SELECT c.comment_id, c.content, c.created_at, u.username, COALESCE(u.display_name, u.username) AS display_name
+       FROM comments c JOIN users u ON u.user_id = c.user_id
        WHERE c.post_id = $1 ORDER BY c.created_at ASC`,
       [row.post_id]
     );
@@ -95,7 +95,7 @@ router.get('/comment', async (req, res) => {
       id: c.comment_id,
       name: c.display_name,
       username: c.username,
-      content: c.body,
+      content: c.content,
       media: [],
       comments: 0,
       likes: 0,
