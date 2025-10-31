@@ -333,6 +333,28 @@
 			</main>
 		</div>
 
+		<!-- Modal: Edit Group -->
+		<div id="editBackdrop" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 px-4" aria-hidden="true">
+			<div class="w-full max-w-lg rounded-2xl border border-gray-700/60 bg-[#182244] p-5 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="editDlgTitle">
+				<h3 id="editDlgTitle" class="text-lg font-semibold mb-3">แก้ไขข้อมูลกลุ่ม</h3>
+				<form id="editForm" class="space-y-3">
+					<div>
+						<label for="editName" class="block text-xs uppercase text-gray-400 mb-1">ชื่อกลุ่ม</label>
+						<input type="text" id="editName" name="name" required placeholder="เช่น Game Dev Squad" class="w-full bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400 text-white placeholder:text-gray-400" />
+					</div>
+					<div>
+						<label for="editDescription" class="block text-xs uppercase text-gray-400 mb-1">คำอธิบาย</label>
+						<textarea id="editDescription" name="description" placeholder="บอกจุดประสงค์ของกลุ่มโดยย่อ" class="w-full min-h-[96px] bg-[#11193a] border border-gray-600 rounded-lg px-3 py-2 text-sm outline-none focus:border-purple-400 text-white placeholder:text-gray-400"></textarea>
+					</div>
+					<div id="editErrorBox" class="hidden text-sm text-red-300"></div>
+					<div class="flex items-center justify-end gap-2 pt-2">
+						<button type="button" id="editCancelBtn" class="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-sm">ยกเลิก</button>
+						<button type="submit" id="editSubmitBtn" class="px-4 py-2 rounded-full bg-purple-600 hover:bg-purple-700 text-sm font-semibold">บันทึกการเปลี่ยนแปลง</button>
+					</div>
+				</form>
+			</div>
+		</div>
+
 		<script>
 			feather.replace();
 			
@@ -447,6 +469,81 @@
 					}
 				});
 			}
+			
+			// Edit group
+			const editGroupBtn = document.getElementById('editGroupBtn');
+			const editBackdrop = document.getElementById('editBackdrop');
+			const editCancelBtn = document.getElementById('editCancelBtn');
+			const editForm = document.getElementById('editForm');
+			const editErrorBox = document.getElementById('editErrorBox');
+			const editSubmitBtn = document.getElementById('editSubmitBtn');
+			const editNameInput = document.getElementById('editName');
+			const editDescriptionInput = document.getElementById('editDescription');
+			
+			function openEditModal() {
+				// Pre-fill form with current group data
+				editNameInput.value = '<%= group.name %>';
+				editDescriptionInput.value = '<%= group.description || "" %>';
+				
+				editErrorBox.classList.add('hidden');
+				editErrorBox.textContent = '';
+				editBackdrop.classList.remove('hidden');
+				editBackdrop.classList.add('flex');
+				editNameInput.focus();
+			}
+			
+			function closeEditModal() {
+				editBackdrop.classList.add('hidden');
+				editBackdrop.classList.remove('flex');
+			}
+			
+			editGroupBtn?.addEventListener('click', openEditModal);
+			editCancelBtn?.addEventListener('click', closeEditModal);
+			editBackdrop?.addEventListener('click', (e) => { if (e.target === editBackdrop) closeEditModal(); });
+			
+			editForm?.addEventListener('submit', async (e) => {
+				e.preventDefault();
+				editErrorBox.classList.add('hidden');
+				editSubmitBtn.disabled = true;
+				editSubmitBtn.textContent = 'กำลังบันทึก...';
+				
+				try {
+					const formData = new FormData(editForm);
+					const payload = Object.fromEntries(formData.entries());
+					
+					const res = await fetch(`/groups/${groupId}`, {
+						method: 'PUT',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(payload)
+					});
+					const data = await res.json();
+					
+					if (res.ok && data.ok) {
+						// Update the UI with new data
+						document.querySelector('h2.text-2xl').textContent = data.group.name;
+						document.querySelector('p.mt-1.text-gray-300').textContent = data.group.description || 'ไม่มีคำอธิบาย';
+						
+						closeEditModal();
+						editForm.reset();
+						
+						// Show success message
+						const successMsg = document.createElement('div');
+						successMsg.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+						successMsg.textContent = 'แก้ไขข้อมูลกลุ่มเรียบร้อย';
+						document.body.appendChild(successMsg);
+						setTimeout(() => successMsg.remove(), 3000);
+					} else {
+						editErrorBox.textContent = data.message || 'แก้ไขข้อมูลกลุ่มไม่สำเร็จ';
+						editErrorBox.classList.remove('hidden');
+					}
+				} catch (err) {
+					editErrorBox.textContent = 'เกิดข้อผิดพลาดในการแก้ไขข้อมูลกลุ่ม';
+					editErrorBox.classList.remove('hidden');
+				} finally {
+					editSubmitBtn.disabled = false;
+					editSubmitBtn.textContent = 'บันทึกการเปลี่ยนแปลง';
+				}
+			});
 			
 			// Delete post - Updated for standardized post component
 			document.addEventListener('click', async (e) => {

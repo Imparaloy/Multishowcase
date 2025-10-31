@@ -826,4 +826,57 @@ export async function removeMemberHandler(req, res) {
   }
 }
 
+// แก้ไขข้อมูลกลุ่ม (เฉพาะเจ้าของ)
+export async function updateGroupHandler(req, res) {
+  try {
+    const { id } = req.params;
+    const { name, description } = req.body || {};
+    
+    const currentUser = await loadCurrentUser(req, { res });
+    const user_id = currentUser?.user_id;
+
+    if (!user_id) {
+      return res.status(401).json({ ok: false, message: 'กรุณาเข้าสู่ระบบ' });
+    }
+
+    if (!name || String(name).trim().length === 0) {
+      return res.status(400).json({ ok: false, message: 'กรุณากรอกชื่อกลุ่ม' });
+    }
+
+    // Check if group exists and user is the owner
+    const { rows } = await pool.query('SELECT * FROM groups WHERE group_id = $1', [id]);
+    const group = rows[0];
+
+    if (!group) {
+      return res.status(404).json({ ok: false, message: 'ไม่พบกลุ่ม' });
+    }
+
+    if (group.owner_id !== user_id) {
+      return res.status(403).json({ ok: false, message: 'คุณไม่มีสิทธิ์แก้ไขกลุ่มนี้' });
+    }
+
+    // Update group information
+    const { rows: updatedRows } = await pool.query(
+      'UPDATE groups SET name = $1, description = $2, updated_at = NOW() WHERE group_id = $3 RETURNING *',
+      [name.trim(), description || null, id]
+    );
+
+    const updatedGroup = updatedRows[0];
+
+    return res.json({
+      ok: true,
+      message: 'แก้ไขข้อมูลกลุ่มเรียบร้อย',
+      group: {
+        id: updatedGroup.group_id,
+        name: updatedGroup.name,
+        description: updatedGroup.description || '',
+        updatedAt: updatedGroup.updated_at
+      }
+    });
+  } catch (e) {
+    console.error('Failed to update group:', e);
+    return res.status(500).json({ ok: false, message: 'ไม่สามารถแก้ไขข้อมูลกลุ่มได้' });
+  }
+}
+
 
