@@ -306,7 +306,6 @@ export const createPost = async (req, res) => {
       
       // Broadcast the new post to all connected clients
       broadcastNewPost({
-        id: newPost.post_id,
         post_id: newPost.post_id,
         title: newPost.title,
         body: newPost.body,
@@ -444,6 +443,49 @@ export const getPresignedPutUrl = async (req, res) => {
   } catch (err) {
     console.error('Failed to create presigned URL:', err);
     return res.status(500).json({ error: 'Failed to create presigned URL' });
+  }
+};
+
+export const getLatestPosts = async (req, res) => {
+  try {
+    const { since } = req.query;
+    const limit = Math.min(parseInt(req.query.limit || '10', 10), 50);
+    
+    // Get the current user if authenticated
+    const viewerId = req.user?.user_id || null;
+    
+    // Import getUnifiedFeed from feed.controller
+    const { getUnifiedFeed } = await import('./feed.controller.js');
+    
+    // Get posts since the specified timestamp (or last 5 minutes if not specified)
+    const sinceDate = since ? new Date(since) : new Date(Date.now() - 5 * 60 * 1000);
+    
+    // Get latest posts
+    const posts = await getUnifiedFeed({
+      limit,
+      offset: 0,
+      viewerId,
+      statuses: viewerId ? ['published', 'unpublish'] : ['published']
+    });
+    
+    // Filter posts created or published since the specified date
+    const latestPosts = posts.filter(post => {
+      const postDate = new Date(post.published_at || post.created_at);
+      return postDate > sinceDate;
+    });
+    
+    return res.json({
+      success: true,
+      posts: latestPosts,
+      count: latestPosts.length,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching latest posts:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch latest posts'
+    });
   }
 };
 

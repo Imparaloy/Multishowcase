@@ -33,14 +33,16 @@ function toNumber(value, fallback) {
   return parsed;
 }
 
-async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset }) {
+async function fetchExplorePosts({ tagSlug, searchTerm, limit, offset, viewerId }) {
   const category = categoryLabelForSlug(tagSlug);
   
   return await getUnifiedFeed({
     limit,
     offset,
     category: tagSlug === 'all' ? null : tagSlug,
-    searchTerm
+    searchTerm,
+    viewerId,
+    statuses: viewerId ? ['published', 'unpublish'] : ['published']
   });
 }
 
@@ -62,11 +64,15 @@ export const getExplorePage = async (req, res) => {
     const searchRaw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const searchTerm = searchRaw.toLowerCase();
 
+    // Get viewer ID from authenticated user
+    const viewerId = res.locals.user?.user_id || null;
+
     const posts = await fetchExplorePosts({
       tagSlug: requestedTag,
       searchTerm,
       limit,
-      offset
+      offset,
+      viewerId
     });
 
     const hasMore = posts.length === limit;
@@ -98,11 +104,15 @@ export const getExploreFeed = async (req, res) => {
     const searchRaw = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const searchTerm = searchRaw.toLowerCase();
 
+    // Get viewer ID from authenticated user
+    const viewerId = res.locals.user?.user_id || null;
+
     const posts = await fetchExplorePosts({
       tagSlug: requestedTag,
       searchTerm,
       limit,
-      offset
+      offset,
+      viewerId
     });
 
     const hasMore = posts.length === limit;
